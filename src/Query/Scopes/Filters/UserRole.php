@@ -35,7 +35,7 @@ class UserRole extends Filter
 
     public function visibleTo($key)
     {
-        return $key === 'users';
+        return false;
     }
 
     protected function options()

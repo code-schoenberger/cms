@@ -69,6 +69,8 @@ class UsersController extends CpController
             ? UserGroup::find($request->group)->queryUsers()
             : $this->indexQuery();
 
+        $filters = $this->queryFilters($query, $request->filters);
+
         $activeFilterBadges = $this->queryFilters($query, $request->filters);
 
         $users = $query
@@ -79,6 +81,7 @@ class UsersController extends CpController
             ->blueprint(User::blueprint())
             ->columnPreferenceKey('users.columns')
             ->additional(['meta' => [
+                'filters' => $filters,
                 'activeFilterBadges' => $activeFilterBadges,
             ]]);
     }

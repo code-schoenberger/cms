@@ -35,7 +35,7 @@ class UserGroup extends Filter
 
     public function visibleTo($key)
     {
-        return $key === 'users' && $this->options()->isNotEmpty();
+        return false;
     }
 
     protected function options()
