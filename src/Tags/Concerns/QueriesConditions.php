@@ -72,6 +72,8 @@ trait QueriesConditions
                 return $this->queryInCondition($query, $field, $value);
             case 'not_in':
                 return $this->queryNotInCondition($query, $field, $value);
+            case 'in_taxonomy':
+                return $this->queryInTaxonomyCondition($query, $field, $value);
             case 'starts_with':
             case 'begins_with':
                 return $this->queryStartsWithCondition($query, $field, $value);
@@ -159,6 +161,15 @@ trait QueriesConditions
         }
 
         return $query->whereNotIn($field, $value);
+    }
+
+    protected function queryInTaxonomyCondition($query, $field, $value)
+    {
+        if (is_string($value)) {
+            $value = $this->getPipedValues($value);
+        }
+
+        return $query->whereTaxonomyIn($value);
     }
 
     protected function queryStartsWithCondition($query, $field, $value)
