@@ -1,5 +1,75 @@
 # Release Notes
 
+## 3.3.8 (2022-04-20)
+
+### What's new
+- Glide generated images can be stored on any filesystem. [#5725](https://github.com/statamic/cms/issues/5725) by @jasonvarga
+- Glide supports watermarks. [#5725](https://github.com/statamic/cms/issues/5725) by @jasonvarga
+- Actions can run JavaScript. [#5854](https://github.com/statamic/cms/issues/5854) by @duncanmcclean
+- Ability to copy a password reset link from the user listing dropdown menus. [#5854](https://github.com/statamic/cms/issues/5854) by @duncanmcclean
+- Ability to provide additional preview targets. [#5549](https://github.com/statamic/cms/issues/5549) by @aerni
+- Simplified Chinese translations. [#5847](https://github.com/statamic/cms/issues/5847) by @grandpalacko
+
+### What's improved
+- Starter kits will require multiple dependencies at once. [#5859](https://github.com/statamic/cms/issues/5859) by @jesseleite
+- Updated Dutch translations. [#5867](https://github.com/statamic/cms/issues/5867) by @robdekort
+- Runtime: Optimized `noparse` parsing. [#5848](https://github.com/statamic/cms/issues/5848) by @fdabek1
+
+### What's fixed
+- Fix issue where adding an image to Bard will make an needless, erroring AJAX request. [#5864](https://github.com/statamic/cms/issues/5864) by @fdabek1
+- Fix issue where the `terms` fieldtype filters out too much. [#5865](https://github.com/statamic/cms/issues/5865) by @jasonvarga
+- Fix `group_by` modifier not working with grids. [#5858](https://github.com/statamic/cms/issues/5858) by @jasonvarga
+- Runtime: Preserve builder instances when being supplied in dynamic bindings and modifiers, or when they've been scoped/nested. [#5807](https://github.com/statamic/cms/issues/5807) by @fdabek1
+- Runtime: Fix single letter variables without spaces skipping HTML content. [#5843](https://github.com/statamic/cms/issues/5843) by @fdabek1
+- Fix validation error when attempting to create a taxonomy that has the same handle as a collection. [#5850](https://github.com/statamic/cms/issues/5850) by @grandpalacko
+
+
+
+## 3.3.7 (2022-04-14)
+
+### What's new
+- The `toggle` fieldtype is available in frontend forms. [#5789](https://github.com/statamic/cms/issues/5789) by @jesseleite
+- Added an `inline_label` option to the `toggle` fieldtype. [#5789](https://github.com/statamic/cms/issues/5789) by @jesseleite
+
+### What's improved
+- User avatars in the CP header are cropped appropriately. [#5731](https://github.com/statamic/cms/issues/5731) by @ncla
+
+### What's fixed
+- Fix handling of hidden nested fields in publish forms. [#5805](https://github.com/statamic/cms/issues/5805) by @jesseleite
+- Runtime: Prevent modifiers on tag pairs being evaluated twice. [#5828](https://github.com/statamic/cms/issues/5828) by @JohnathonKoster
+- Runtime: Prevent a log when looping over a null. [#5832](https://github.com/statamic/cms/issues/5832) by @JohnathonKoster
+- Adjusted docs link in French translation. [#5835](https://github.com/statamic/cms/issues/5835) by @ebeauchamps
+- Another ReturnTypeWillChange annotation. [#5839](https://github.com/statamic/cms/issues/5839) by @jasonvarga
+
+
+
+## 3.3.6 (2022-04-11)
+
+### What's new
+- The Markdown `Parser` class is macroable. [#5797](https://github.com/statamic/cms/issues/5797) by @jacksleight
+
+### What's improved
+- Dutch translations. [#5801](https://github.com/statamic/cms/issues/5801) by @robdekort
+- Norwegian translations. [#5798](https://github.com/statamic/cms/issues/5798) by @espenlg
+
+### What's fixed
+- The `nav:breadcrumbs` tag can now be used in Blade. [#5599](https://github.com/statamic/cms/issues/5599) by @jasonvarga
+- Collections are counted more efficiently in the `length` modifier. [#5802](https://github.com/statamic/cms/issues/5802) by @jasonvarga
+- Fix issue when using a single `assets` field named `asset`. [#5799](https://github.com/statamic/cms/issues/5799) by @jasonvarga
+- Fix `entries` fieldtype in select mode pushing the content area wider. [#5787](https://github.com/statamic/cms/issues/5787) by @jackmcdade
+- Runtime: Support for multiple interpolations in tag method names. [#5800](https://github.com/statamic/cms/issues/5800) by @JohnathonKoster
+- Runtime: Isolate scope when resolving values to prevent overriding page data. [#5668](https://github.com/statamic/cms/issues/5668) by @JohnathonKoster
+- Runtime: Correct self closing tags. [#5781](https://github.com/statamic/cms/issues/5781) by @JohnathonKoster
+- Runtime: Fix issue when using recursion and conditions. [#5779](https://github.com/statamic/cms/issues/5779) by @JohnathonKoster
+- Runtime: Fix `noparse` behavior. [#5778](https://github.com/statamic/cms/issues/5778) by @JohnathonKoster
+- Runtime: Fix modifier chains and null values. [#5780](https://github.com/statamic/cms/issues/5780) by @JohnathonKoster
+- Runtime: Prevent literal from being removed when using multiple nested double braces in a parameter. [#5777](https://github.com/statamic/cms/issues/5777) by @JohnathonKoster
+- Runtime: Removes ctype_space null deprecation warning. [#5776](https://github.com/statamic/cms/issues/5776) by @JohnathonKoster
+- Bump `minimist` from 1.2.5 to 1.2.6 [#5808](https://github.com/statamic/cms/issues/5808) by @dependabot
+- Bump `moment` from 2.27.0 to 2.29.2 [#5806](https://github.com/statamic/cms/issues/5806) by @dependabot
+
+
+
 ## 3.3.5 (2022-04-06)
 
 ### What's new
