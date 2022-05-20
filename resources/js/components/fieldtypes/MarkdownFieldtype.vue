@@ -289,7 +289,7 @@ export default {
             }
 
             if (! url) {
-                url = prompt(__('Enter URL'), 'http://');
+                url = prompt(__('Enter URL'), 'https://');
                 if (! url) {
                     url = '';
                 }
@@ -572,6 +572,8 @@ export default {
             tabindex: 0,
             autoRefresh: true,
             readOnly: self.isReadOnly ? 'nocursor' : false,
+            inputStyle: 'contenteditable',
+            spellcheck: true,
             extraKeys: {
                 "Enter": "newlineAndIndentContinueMarkdownList",
                 "Cmd-Left": "goLineLeftSmart"
