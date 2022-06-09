@@ -228,6 +228,10 @@ class CoreModifiers extends Modifier
      */
     public function chunk($value, $params)
     {
+        if (Compare::isQueryBuilder($value)) {
+            $value = $value->get();
+        }
+
         return collect($value)
             ->chunk(Arr::get($params, 0))
             ->map(function ($chunk) {
@@ -1619,6 +1623,26 @@ class CoreModifiers extends Modifier
     }
 
     /**
+     * Get a path component.
+     *
+     * @param $value
+     * @return string
+     */
+    public function pathinfo($value, $params)
+    {
+        $key = Arr::get($params, 0);
+
+        $component = $key ? [
+            'dirname'   => PATHINFO_DIRNAME,
+            'basename'  => PATHINFO_BASENAME,
+            'extension' => PATHINFO_EXTENSION,
+            'filename'  => PATHINFO_FILENAME,
+        ][$key] : (defined('PATHINFO_ALL') ? PATHINFO_ALL : 15);
+
+        return pathinfo($value, $component);
+    }
+
+    /**
      * Renders an array variable with a partial, context aware.
      *
      * @param  array  $value
@@ -2437,6 +2461,22 @@ class CoreModifiers extends Modifier
     }
 
     /**
+     * Convert value to a boolean.
+     *
+     * @param $params
+     * @param $value
+     * @return bool
+     */
+    public function toBool($value, $params)
+    {
+        if (is_string($value)) {
+            return Str::toBool($value);
+        }
+
+        return boolval($value);
+    }
+
+    /**
      * Converts the data to json.
      *
      * @param $value
@@ -2670,6 +2710,30 @@ class CoreModifiers extends Modifier
         $item = is_string($value) ? optional(Data::find($value)) : $value;
 
         return $item->url();
+    }
+
+    /**
+     * Get a URL component.
+     *
+     * @param $value
+     * @return string
+     */
+    public function parse_url($value, $params)
+    {
+        $key = Arr::get($params, 0);
+
+        $component = $key ? [
+            'scheme'   => PHP_URL_SCHEME,
+            'host'     => PHP_URL_HOST,
+            'port'     => PHP_URL_PORT,
+            'user'     => PHP_URL_USER,
+            'pass'     => PHP_URL_PASS,
+            'path'     => PHP_URL_PATH,
+            'query'    => PHP_URL_QUERY,
+            'fragment' => PHP_URL_FRAGMENT,
+        ][$key] : -1;
+
+        return parse_url($value, $component);
     }
 
     /**
