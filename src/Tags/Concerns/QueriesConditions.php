@@ -74,6 +74,8 @@ trait QueriesConditions
                 return $this->queryNotInCondition($query, $field, $value);
             case 'in_taxonomy':
                 return $this->queryInTaxonomyCondition($query, $field, $value);
+            case 'in_month':
+                return $this->queryInMonthCondition($query, $field, $value);
             case 'starts_with':
             case 'begins_with':
                 return $this->queryStartsWithCondition($query, $field, $value);
@@ -170,6 +172,28 @@ trait QueriesConditions
         }
 
         return $query->whereTaxonomyIn($value);
+    }
+
+    protected function queryInMonthCondition($query, $field, $value)
+    {
+        if (is_string($value)) {
+            $dates = $this->getPipedValues($value);
+        }
+
+        foreach ($dates as $idx => $date) {
+            [$year, $month] = explode('-', $date);
+        
+            if ($idx === 0) {
+                $query->whereMonth($field, $month)->whereYear($field, $year);
+            } else {
+                $query->orWhere(function ($query) use ($month, $year, $field) {
+                    $query->whereMonth($field, $month)
+                        ->whereYear($field, $year);
+                });
+            }
+        }
+
+        return $query;
     }
 
     protected function queryStartsWithCondition($query, $field, $value)
