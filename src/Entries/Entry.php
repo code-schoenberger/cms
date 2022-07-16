@@ -296,6 +296,7 @@ class Entry implements Contract, Augmentable, Responsable, Localization, Protect
 
         $afterSaveCallbacks = $this->afterSaveCallbacks;
         $this->afterSaveCallbacks = [];
+
         if ($withEvents) {
             if (EntrySaving::dispatch($this) === false) {
                 return false;
@@ -636,6 +637,7 @@ class Entry implements Contract, Augmentable, Responsable, Localization, Protect
             ->collection($this->collection)
             ->origin($this)
             ->locale($site)
+            ->published($this->published)
             ->slug($this->slug())
             ->date($this->date());
     }
