@@ -1,5 +1,62 @@
 # Release Notes
 
+## 3.3.43 (2022-10-05)
+
+### What's improved
+- Command registration in starter kit post-install hooks. [#6807](http://github.com/statamic/cms/issues/6807) by @jesseleite
+
+### What's fixed
+- Fix starter kit post-install for statamic/cli users in Windows. [#6830](http://github.com/statamic/cms/issues/6830) by @jesseleite
+- Fix `stache:warm` and `stache:refresh` performance regression when using S3 assets. [#6835](http://github.com/statamic/cms/issues/6835) by @jesseleite
+
+
+
+## 3.3.42 (2022-10-03)
+
+### What's new
+- Added a filter for the `users` fieldtype. [#6654](https://github.com/statamic/cms/issues/6654) by @jacksleight
+- Add `width` to GraphQL form field type. [#6815](https://github.com/statamic/cms/issues/6815) by @duncanmcclean
+
+### What's improved
+- An exception is thrown if composer.lock is missing when finding the Statamic version. [#6808](https://github.com/statamic/cms/issues/6808) by @flolanger
+- Resolve redirects through fieldtype. [#6562](https://github.com/statamic/cms/issues/6562) by @jacksleight
+- German translations. [#6809](https://github.com/statamic/cms/issues/6809) by @dominikradl
+
+### What's fixed
+- Fix focal point not saving when asset blueprint has no fields [#6814](https://github.com/statamic/cms/issues/6814) by @ncla
+- Fix asset meta bottleneck. [#6822](https://github.com/statamic/cms/issues/6822) by @jasonvarga
+- Avoid prompt to make user when installing starter kit via statamic/cli. [#6810](https://github.com/statamic/cms/issues/6810) by @jesseleite
+
+
+
+## 3.3.41 (2022-09-29)
+
+### What's new
+- Starter kit post-install hooks. [#6792](https://github.com/statamic/cms/issues/6792) by @jesseleite
+
+### What's improved
+- Asset's glide cache is busted when `focus` changes. [#6769](https://github.com/statamic/cms/issues/6769) by @edalzell
+- Dutch translations. [#6805](https://github.com/statamic/cms/issues/6805) by @robdekort
+
+### What's fixed
+- Uppercase acronyms are left alone in the `title` modifier. [#6783](https://github.com/statamic/cms/issues/6783) by @joshuablum
+- Fix `assets` fieldtype error. [#6799](https://github.com/statamic/cms/issues/6799) by @jacksleight
+- Fix GitHub Action workflow to test on multiple Laravel versions. [#6801](https://github.com/statamic/cms/issues/6801) by @crynobone
+
+
+
+## 3.3.40 (2022-09-27)
+
+### What's improved
+- French translations [#6780](https://github.com/statamic/cms/issues/6780) by @ebeauchamps
+
+### What's fixed
+- Fix asset selector grid columns. [#6790](https://github.com/statamic/cms/issues/6790) by @jacksleight
+- Fix asset browse button inside link fieldtype. [#6788](https://github.com/statamic/cms/issues/6788) by @jacksleight
+- Fix Bard set menu options not working. [#6779](https://github.com/statamic/cms/issues/6779) by @jacksleight
+
+
+
 ## 3.3.39 (2022-09-23)
 
 ### What's new

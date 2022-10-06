@@ -53,10 +53,28 @@ class Asset implements AssetContract, Augmentable, ArrayAccess, Arrayable, Conta
     protected $container;
     protected $path;
     protected $meta;
-    protected $syncOriginalProperties = ['path'];
     protected $withEvents = true;
     protected $shouldHydrate = true;
     protected $removedData = [];
+
+    public function syncOriginal()
+    {
+        $this->original = [];
+
+        foreach (['path'] as $property) {
+            $this->original[$property] = $this->{$property};
+        }
+
+        // Temporary performance hotfix for when running `stache:refresh` or `stache:warm` with
+        // assets in S3, as we don't need to sync `$this->meta('data')` in those situations.
+        if (Str::startsWith(Arr::get(request()->server(), 'argv.1'), 'stache:')) {
+            return $this;
+        }
+
+        $this->original['data'] = $this->metaExists() ? $this->meta('data') : $this->data->all();
+
+        return $this;
+    }
 
     public function __construct()
     {
@@ -239,6 +257,11 @@ class Asset implements AssetContract, Augmentable, ArrayAccess, Arrayable, Conta
         $path = dirname($this->path()).'/.meta/'.$this->basename().'.yaml';
 
         return ltrim($path, '/');
+    }
+
+    protected function metaExists()
+    {
+        return $this->container()->metaFiles()->contains($this->metaPath());
     }
 
     public function writeMeta($meta)
@@ -640,6 +663,7 @@ class Asset implements AssetContract, Augmentable, ArrayAccess, Arrayable, Conta
             return $this;
         }
 
+        $this->hydrate();
         $this->disk()->rename($oldPath, $newPath);
         $this->path($newPath);
         $this->save();
