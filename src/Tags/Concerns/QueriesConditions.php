@@ -298,7 +298,7 @@ trait QueriesConditions
     protected function queryIsAfterCondition($query, $field, $value)
     {
         $comparison = is_bool($value) ? $value : true;
-        $date = is_string($value) ? Carbon::parse($value) : Carbon::now();
+        $date = $this->getDateComparisonValue($value);
 
         return $comparison
             ? $this->queryGreaterThanCondition($query, $field, $date)
@@ -308,11 +308,24 @@ trait QueriesConditions
     protected function queryIsBeforeCondition($query, $field, $value)
     {
         $comparison = is_bool($value) ? $value : true;
-        $date = is_string($value) ? Carbon::parse($value) : Carbon::now();
+        $date = $this->getDateComparisonValue($value);
 
         return $comparison
             ? $this->queryLessThanCondition($query, $field, $date)
             : $this->queryGreaterThanCondition($query, $field, $date);
+    }
+
+    private function getDateComparisonValue($value)
+    {
+        if ($value instanceof Carbon) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            return Carbon::parse($value);
+        }
+
+        return Carbon::now();
     }
 
     protected function queryIsNumberwangCondition($query, $field, $regexOperator)
@@ -337,6 +350,10 @@ trait QueriesConditions
     {
         if ($value instanceof Value) {
             $value = $value->value();
+        }
+
+        if ($value instanceof Carbon) {
+            return $value;
         }
 
         if (is_array($value)) {

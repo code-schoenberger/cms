@@ -1,5 +1,53 @@
 # Release Notes
 
+## 3.3.62 (2022-12-16)
+
+### What's new
+- Support default manipulations for Glide. Support using aliases in presets. [#7239](https://github.com/statamic/cms/issues/7239) by @jackmcdade
+- Support prepend and append options on the `integer` fieldtype. [#7241](https://github.com/statamic/cms/issues/7241) by @jackmcdade
+- Support for search transformers to be classes. [#7177](https://github.com/statamic/cms/issues/7177) by @ryanmitchell
+
+### What's improved
+- Improve Control Panel's UX when using an invalid site key format. [#7110](https://github.com/statamic/cms/issues/7110) by @joshuablum
+- Links in field instructions will in new windows. [#7223](https://github.com/statamic/cms/issues/7223) by @jackmcdade
+
+### What's fixed
+- Fix asset thumbnails and file icons in entry listings and `assets` field. [#7195](https://github.com/statamic/cms/issues/7195) by @jacksleight
+- Fix autofocusing of the first field in Control Panel forms. [#7242](https://github.com/statamic/cms/issues/7242) by @jackmcdade
+- Fix default preferences not being tracked with the Git integration. [#7230](https://github.com/statamic/cms/issues/7230) by @jesseleite
+- The `color` fieldtype's picker closes when clicking save. [#7219](https://github.com/statamic/cms/issues/7219) by @jacksleight
+- The `collection` widget's "create entry" button works with multiple blueprints. [#7217](https://github.com/statamic/cms/issues/7217) by @jackmcdade
+
+
+
+## 3.3.61 (2022-12-13)
+
+### What's new
+- Add `user:profile_form` and `user:password_form` tags. [#6400](https://github.com/statamic/cms/issues/6400) by @jacksleight
+- Add info about Stache watcher and Static Caching to the `about` and `support:details` commands. [#7213](https://github.com/statamic/cms/issues/7213) by @joshuablum
+
+### What's improved
+- French translations. [#7196](https://github.com/statamic/cms/issues/7196) by @ebeauchamps
+- Hungarian translations. [#7162](https://github.com/statamic/cms/issues/7162) by @zsoltjanes
+
+### What's fixed
+- Handle edits within front-end fields. [#7178](https://github.com/statamic/cms/issues/7178) by @jasonvarga
+- Handle empty checkboxes fieldtype on front-end. [#7180](https://github.com/statamic/cms/issues/7180) by @jasonvarga
+- Fix term slugs not using appropriate language when creating through fieldtype. [#7208](https://github.com/statamic/cms/issues/7208) by @FrittenKeeZ
+- Fix deprecation notices in `link` fieldtype when empty. [#7201](https://github.com/statamic/cms/issues/7201) by @linaspasv
+- Fix Statamic's file cache driver not honoring custom permission setting. [#7189](https://github.com/statamic/cms/issues/7189) by @tomgillett
+- Fix utility route authorization. [#7214](https://github.com/statamic/cms/issues/7214) by @jasonvarga
+- Fix Javascript error on publish form in Chrome. [#7170](https://github.com/statamic/cms/issues/7170) by @arthurperton
+- Fix focal point not saving when editing other asset fields. [#7171](https://github.com/statamic/cms/issues/7171) by @arthurperton
+- Hook up REST API pagination size config. [#7161](https://github.com/statamic/cms/issues/7161) by @duncanmcclean
+- Allow version 6 of `symfony/var-exporter`. [#7191](https://github.com/statamic/cms/issues/7191) by @tomschlick
+- Bump express from 4.17.1 to 4.18.2 [#7187](https://github.com/statamic/cms/issues/7187) by @dependabot
+- Bump minimatch from 3.0.4 to 3.1.2 [#7167](https://github.com/statamic/cms/issues/7167) by @dependabot
+- Bump qs from 6.9.4 to 6.9.7 [#7176](https://github.com/statamic/cms/issues/7176) by @dependabot
+- Fix npm build issues. [#7190](https://github.com/statamic/cms/issues/7190) by @jasonvarga
+
+
+
 ## 3.3.60 (2022-12-02)
 
 ### What's new
