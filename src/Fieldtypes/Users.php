@@ -102,7 +102,7 @@ class Users extends Relationship
             return $users;
         }
 
-        return $query->get()->map($userFields);
+        return $query->get()->filter(fn($i) => !in_array('user', $i->roles))->map($userFields);
     }
 
     protected function getColumns()
