@@ -4,6 +4,7 @@ namespace Statamic\Stache\Indexes;
 
 use Illuminate\Support\Facades\Cache;
 use Statamic\Facades\Stache;
+use Statamic\Statamic;
 
 abstract class Index
 {
@@ -66,6 +67,10 @@ abstract class Index
 
         $this->loaded = true;
 
+        if (Statamic::isWorker()) {
+            $this->loaded = false;
+        }
+
         debugbar()->addMessage("Loading index: {$this->store->key()}/{$this->name}", 'stache');
 
         $this->items = Cache::get($this->cacheKey());
@@ -126,14 +131,21 @@ abstract class Index
 
     public function cacheKey()
     {
+        $replacements = ['::', '->'];
+
+        if (windows_os()) {
+            $replacements[1] = '-]';
+        }
+
         return vsprintf('stache::indexes::%s::%s', [
             $this->store->key(),
-            str_replace('.', '::', $this->name),
+            str_replace(['.', '/'], $replacements, $this->name),
         ]);
     }
 
     public function clear()
     {
+        $this->loaded = false;
         $this->items = null;
 
         Cache::forget($this->cacheKey());

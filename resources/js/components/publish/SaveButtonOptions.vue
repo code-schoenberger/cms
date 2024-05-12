@@ -6,14 +6,14 @@
         <slot></slot>
 
         <!-- Save and continue options dropdown -->
-        <dropdown-list v-if="showOptions" class="text-left">
+        <dropdown-list v-if="showOptions" class="rtl:text-right ltr:text-left">
             <template v-slot:trigger>
-                <button :class="buttonClass" class="rounded-l-none">
+                <button :class="buttonClass" class="rtl:rounded-r-none ltr:rounded-l-none">
                     <svg-icon v-if="buttonIcon" :name="buttonIcon.name" :class="buttonIcon.class" />
                 </button>
             </template>
-            <h6 v-text="__('After Saving')" class="p-1" />
-            <div class="publish-fields px-1">
+            <h6 v-text="__('After Saving')" class="p-2" />
+            <div class="publish-fields px-2">
                 <div class="publish-field save-and-continue-options">
                     <radio-fieldtype
                         handle="save_and_continue_options"
@@ -65,11 +65,11 @@ export default {
         buttonIcon() {
             switch(true) {
                 case this.currentOption === 'listing':
-                    return {name: 'micro-arrow-go-back', class: 'w-3'};
+                    return {name: 'micro/arrow-go-back', class: 'w-3'};
                 case this.currentOption === 'continue_editing':
-                    return {name: 'chevron-down-xs', class: 'w-2'};
+                    return {name: 'micro/chevron-down-xs', class: 'w-2'};
                 case this.currentOption === 'create_another':
-                    return {name: 'micro-add-circle', class: 'w-3'};
+                    return {name: 'micro/add-circle', class: 'w-3'};
             }
         },
 
@@ -106,6 +106,6 @@ export default {
         margin-bottom: 9px;
     }
     .save-and-continue-options input {
-        margin-right: 5px;
+        margin-right: 5px ; [dir="rtl"] & { margin-left: 5px ; margin-right: 0 ; }
     }
 </style>

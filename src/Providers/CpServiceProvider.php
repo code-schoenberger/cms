@@ -6,11 +6,11 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
-use Statamic\CP\Utilities\CoreUtilities;
 use Statamic\CP\Utilities\UtilityRepository;
 use Statamic\Extensions\Translation\Loader;
 use Statamic\Extensions\Translation\Translator;
 use Statamic\Facades\User;
+use Statamic\Fieldtypes\Sets;
 use Statamic\Http\View\Composers\CustomLogoComposer;
 use Statamic\Http\View\Composers\FieldComposer;
 use Statamic\Http\View\Composers\JavascriptComposer;
@@ -33,11 +33,15 @@ class CpServiceProvider extends ServiceProvider
         View::composer(NavComposer::VIEWS, NavComposer::class);
         View::composer(CustomLogoComposer::VIEWS, CustomLogoComposer::class);
 
-        CoreUtilities::boot();
-
         Blade::directive('cp_svg', function ($expression) {
             return "<?php echo Statamic::svg({$expression}) ?>";
         });
+
+        Blade::directive('rarr', function ($expression) {
+            return "<?php echo Statamic::cpDirection() === 'ltr' ? '&rarr;' : '&larr;' ?>";
+        });
+
+        Sets::setIconsDirectory();
 
         $this->registerMiddlewareGroups();
     }
@@ -83,7 +87,12 @@ class CpServiceProvider extends ServiceProvider
         $router->middlewareGroup('statamic.cp.authenticated', [
             \Statamic\Http\Middleware\CP\Authorize::class,
             \Statamic\Http\Middleware\CP\Localize::class,
+            \Statamic\Http\Middleware\CP\SelectedSite::class,
+            \Statamic\Http\Middleware\CP\BootPermissions::class,
+            \Statamic\Http\Middleware\CP\BootPreferences::class,
+            \Statamic\Http\Middleware\CP\BootUtilities::class,
             \Statamic\Http\Middleware\CP\CountUsers::class,
+            \Statamic\Http\Middleware\CP\AddVaryHeaderToResponse::class,
             \Statamic\Http\Middleware\DeleteTemporaryFileUploads::class,
         ]);
     }

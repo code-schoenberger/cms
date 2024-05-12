@@ -3,6 +3,7 @@
 namespace Statamic\Tags;
 
 use Facades\Statamic\Imaging\Attributes;
+use Facades\Statamic\Imaging\ImageValidator;
 use League\Glide\Server;
 use Statamic\Contracts\Assets\Asset as AssetContract;
 use Statamic\Contracts\Data\Augmentable;
@@ -27,7 +28,7 @@ class Glide extends Tags
      * @param  array  $args
      * @return string
      */
-    public function __call($method, $args)
+    public function wildcard($method)
     {
         $tag = explode(':', $this->tag, 2)[1];
 
@@ -131,20 +132,24 @@ class Glide extends Tags
         $items = is_iterable($items) ? collect($items) : collect([$items]);
 
         return $items->map(function ($item) {
-            $data = ['url' => $this->generateGlideUrl($item)];
+            try {
+                $data = ['url' => $this->generateGlideUrl($item)];
 
-            if ($this->isResizable($item)) {
-                $path = $this->generateImage($item);
-                $attrs = Attributes::from(GlideManager::cacheDisk()->getDriver(), $path);
-                $data = array_merge($data, $attrs);
+                if ($this->isValidExtension($item)) {
+                    $path = $this->generateImage($item);
+                    $attrs = Attributes::from(GlideManager::cacheDisk(), $path);
+                    $data = array_merge($data, $attrs);
+                }
+
+                if ($item instanceof Augmentable) {
+                    $data = array_merge($item->toAugmentedArray(), $data);
+                }
+
+                return $data;
+            } catch (\Exception $e) {
+                \Log::error($e->getMessage());
             }
-
-            if ($item instanceof Augmentable) {
-                $data = array_merge($item->toAugmentedArray(), $data);
-            }
-
-            return $data;
-        })->all();
+        })->filter()->all();
     }
 
     /**
@@ -191,14 +196,14 @@ class Glide extends Tags
     private function generateGlideUrl($item)
     {
         try {
-            $url = $this->isResizable($item) ? $this->getManipulator($item)->build() : $this->normalizeItem($item);
+            $url = $this->isValidExtension($item) ? $this->getManipulator($item)->build() : $this->normalizeItem($item);
         } catch (\Exception $e) {
             \Log::error($e->getMessage());
 
             return;
         }
 
-        $url = ($this->params->bool('absolute', $this->useAbsoluteUrls())) ? URL::makeAbsolute($url) : URL::makeRelative($url);
+        $url = ($this->params->bool('absolute', $this->useAbsoluteUrls($url))) ? URL::makeAbsolute($url) : URL::makeRelative($url);
 
         return $url;
     }
@@ -329,40 +334,22 @@ class Glide extends Tags
     }
 
     /**
-     * Checks if a file at a given path is resizable.
+     * Checks if a file at a given path has valid extension for glide manipulation.
      *
      * @param  string  $item
      * @return bool
      */
-    private function isResizable($item)
+    private function isValidExtension($item)
     {
-        return in_array(strtolower(Path::extension($item)), $this->allowedFileFormats());
+        return ImageValidator::isValidExtension(Path::extension($item));
     }
 
-    /**
-     * The list of allowed file formats based on the configured driver.
-     *
-     * @see http://image.intervention.io/getting_started/formats
-     *
-     * @return array
-     *
-     * @throws \Exception
-     */
-    private function allowedFileFormats()
+    private function useAbsoluteUrls(string $url): bool
     {
-        $driver = config('statamic.assets.image_manipulation.driver');
-
-        if ($driver == 'gd') {
-            return ['jpeg', 'jpg', 'png', 'gif', 'webp'];
-        } elseif ($driver == 'imagick') {
-            return ['jpeg', 'jpg', 'png', 'gif', 'tif', 'bmp', 'psd', 'webp'];
+        if (! $this->isValidExtension($url) && Str::startsWith($url, ['http://', 'https://'])) {
+            return true;
         }
 
-        throw new \Exception("Unsupported image manipulation driver [$driver]");
-    }
-
-    private function useAbsoluteUrls()
-    {
         return Str::startsWith(GlideManager::url(), ['http://', 'https://']);
     }
 }

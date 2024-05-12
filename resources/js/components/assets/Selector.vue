@@ -11,19 +11,21 @@
                     :restrict-container-navigation="restrictContainerNavigation"
                     :restrict-folder-navigation="restrictFolderNavigation"
                     :max-files="maxFiles"
+                    :query-scopes="queryScopes"
                     :autoselect-uploads="true"
+                    :autofocus-search="true"
                     @selections-updated="selectionsUpdated"
                     @asset-doubleclicked="select">
 
                     <template slot="contextual-actions" v-if="browserSelections.length">
-                        <button class="btn action mb-3" @click="browserSelections = []">{{ __('Uncheck All') }}</button>
+                        <button class="btn action mb-6" @click="browserSelections = []">{{ __('Uncheck All') }}</button>
                     </template>
 
                 </asset-browser>
             </div>
 
-            <div class="p-2 border-t flex items-center justify-between bg-grey-20">
-                <div class="text-sm text-grey-70"
+            <div class="p-4 border-t flex items-center justify-between bg-gray-200">
+                <div class="text-sm text-gray-700"
                     v-text="hasMaxFiles
                         ? __n(':count/:max selected', browserSelections, { max: maxFiles })
                         : __n(':count selected|:count selected', browserSelections)">
@@ -38,7 +40,7 @@
 
                     <button
                         type="button"
-                        class="btn-primary ml-1"
+                        class="btn-primary rtl:mr-2 ltr:ml-2"
                         @click="select">
                         {{ __('Select') }}
                     </button>
@@ -56,6 +58,7 @@ export default {
         folder: String,
         selected: Array,
         maxFiles: Number,
+        queryScopes: Array,
         restrictContainerNavigation: {
             type: Boolean,
             default() {

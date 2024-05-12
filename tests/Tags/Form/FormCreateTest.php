@@ -2,6 +2,11 @@
 
 namespace Tests\Tags\Form;
 
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Form;
 use Statamic\Statamic;
 
@@ -23,7 +28,7 @@ class FormCreateTest extends FormTestCase
 
         foreach ($forms as $output) {
             $this->assertStringStartsWith('<form method="POST" action="http://localhost/!/forms/contact">', $output);
-            $this->assertStringContainsString('<input type="hidden" name="_token" value="">', $output);
+            $this->assertStringContainsString(csrf_field(), $output);
             $this->assertStringEndsWith('</form>', $output);
         }
     }
@@ -48,7 +53,7 @@ class FormCreateTest extends FormTestCase
     }
 
     /** @test */
-    public function it_renders_form_dynamically_with_fields_array()
+    public function it_dynamically_renders_fields_array()
     {
         $output = $this->normalizeHtml($this->tag(<<<'EOT'
 {{ form:contact }}
@@ -57,7 +62,7 @@ class FormCreateTest extends FormTestCase
     {{ /fields }}
 {{ /form:contact }}
 EOT
-));
+        ));
 
         $this->assertStringContainsString('<label>Full Name</label><input type="text" name="name" value="">', $output);
         $this->assertStringContainsString('<label>Email Address</label><input type="email" name="email" value="" required>', $output);
@@ -448,6 +453,108 @@ EOT
     }
 
     /** @test */
+    public function it_dynamically_renders_sections_array()
+    {
+        $this->createForm([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'display' => 'One',
+                            'instructions' => 'One Instructions',
+                            'fields' => [
+                                ['handle' => 'alpha', 'field' => ['type' => 'text']],
+                                ['handle' => 'bravo', 'field' => ['type' => 'text']],
+                            ],
+                        ],
+                        [
+                            'display' => 'Two',
+                            'instructions' => 'Two Instructions',
+                            'fields' => [
+                                ['handle' => 'charlie', 'field' => ['type' => 'text']],
+                                ['handle' => 'delta', 'field' => ['type' => 'text']],
+                            ],
+                        ],
+                        [
+                            'display' => null,
+                            'instructions' => null,
+                            'fields' => [
+                                ['handle' => 'echo', 'field' => ['type' => 'text']],
+                                ['handle' => 'fox', 'field' => ['type' => 'text']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], 'survey');
+
+        $output = $this->normalizeHtml($this->tag(<<<'EOT'
+{{ form:survey }}
+    {{ sections }}
+        <div class="section">{{ if display}}{{ display }} - {{ /if }}{{ if instructions }}{{ instructions }} - {{ /if }}{{ fields | pluck('handle') | join(',') }}</div>
+    {{ /sections }}
+    <div class="fields">{{ fields | pluck('handle') | join(',') }}</div>
+{{ /form:survey }}
+EOT
+        ));
+
+        $this->assertStringContainsString('<div class="section">One - One Instructions - alpha,bravo</div>', $output);
+        $this->assertStringContainsString('<div class="section">Two - Two Instructions - charlie,delta</div>', $output);
+        $this->assertStringContainsString('<div class="section">echo,fox</div>', $output);
+
+        // Even though the fields are all nested within sections,
+        // we should still be able to get them via `{{ fields }}` array at top level...
+        $this->assertStringContainsString('<div class="fields">alpha,bravo,charlie,delta,echo,fox</div>', $output);
+    }
+
+    /** @test */
+    public function it_renders_section_instructions_without_cascading_into_field_instructions()
+    {
+        $this->createForm([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'display' => 'One',
+                            'instructions' => 'One Instructions',
+                            'fields' => [
+                                ['handle' => 'alpha', 'field' => ['type' => 'text']],
+                                ['handle' => 'bravo', 'field' => ['type' => 'text', 'instructions' => 'This field has instructions!']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], 'survey');
+
+        $output = $this->normalizeHtml($this->tag(<<<'EOT'
+{{ form:survey }}
+    {{ sections }}
+        <div class="section">{{ display }}{{ if instructions }} ({{ instructions }}){{ /if }}
+            {{ fields }}
+                <div class="field-in-section">{{ handle }}{{ if instructions }} ({{ instructions }}){{ /if }}</div>
+            {{ /fields }}
+        </div>
+    {{ /sections }}
+    <div class="fields">
+        {{ fields }}
+            <div class="field-by-itself">{{ handle }}{{ if instructions }} ({{ instructions }}){{ /if }}</div>
+        {{ /fields }}
+    </div>
+{{ /form:survey }}
+EOT
+        ));
+
+        $this->assertStringContainsString('<div class="section">One (One Instructions)', $output);
+
+        // Section instructions should NOT cascade down into field instructions...
+        $this->assertStringContainsString('<div class="field-in-section">alpha</div>', $output);
+        $this->assertStringContainsString('<div class="field-by-itself">alpha</div>', $output);
+        $this->assertStringContainsString('<div class="field-in-section">bravo (This field has instructions!)</div>', $output);
+        $this->assertStringContainsString('<div class="field-by-itself">bravo (This field has instructions!)</div>', $output);
+    }
+
+    /** @test */
     public function it_wont_submit_form_and_renders_errors()
     {
         $this->assertEmpty(Form::find('contact')->submissions());
@@ -655,7 +762,6 @@ EOT
     /** @test */
     public function it_can_render_an_inline_error_when_multiple_rules_fail()
     {
-        $this->withoutExceptionHandling();
         $this->assertEmpty(Form::find('contact')->submissions());
 
         $this
@@ -690,7 +796,7 @@ EOT
         ];
 
         $expectedInline = [
-            'The Full Name must be at least 3 characters.',
+            trans('validation.min.string', ['attribute' => 'Full Name', 'min' => 3]), // 'The Full Name must be at least 3 characters.',
         ];
 
         $this->assertEquals($expected, $errors[1]);
@@ -720,5 +826,109 @@ EOT
 
         $this->assertEquals($form['honeypot'], 'winnie');
         $this->assertEquals($form['js_driver'], 'alpine');
+    }
+
+    /** @test */
+    public function it_uploads_assets()
+    {
+        Storage::fake('avatars');
+        AssetContainer::make('avatars')->disk('avatars')->save();
+
+        $this->createForm([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'display' => 'One',
+                            'instructions' => 'One Instructions',
+                            'fields' => [
+                                ['handle' => 'alpha', 'field' => ['type' => 'text']],
+                                ['handle' => 'bravo', 'field' => ['type' => 'assets', 'container' => 'avatars']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], 'survey');
+
+        $this
+            ->post('/!/forms/survey', [
+                'alpha' => 'test',
+                'bravo' => UploadedFile::fake()->image('avatar.jpg'),
+            ]);
+
+        Storage::disk('avatars')->assertExists('avatar.jpg');
+    }
+
+    /** @test */
+    public function it_removes_any_uploaded_assets_when_a_submission_silently_fails()
+    {
+        Storage::fake('avatars');
+        AssetContainer::make('avatars')->disk('avatars')->save();
+
+        Event::listen(function (\Statamic\Events\FormSubmitted $event) {
+            return false;
+        });
+
+        $this->createForm([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'display' => 'One',
+                            'instructions' => 'One Instructions',
+                            'fields' => [
+                                ['handle' => 'alpha', 'field' => ['type' => 'text']],
+                                ['handle' => 'bravo', 'field' => ['type' => 'assets', 'container' => 'avatars']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], 'survey');
+
+        $this
+            ->post('/!/forms/survey', [
+                'alpha' => 'test',
+                'bravo' => UploadedFile::fake()->image('avatar.jpg'),
+            ]);
+
+        Storage::disk('avatars')->assertMissing('avatar.jpg');
+    }
+
+    /** @test */
+    public function it_removes_any_uploaded_assets_when_a_listener_throws_a_validation_exception()
+    {
+        Storage::fake('avatars');
+        AssetContainer::make('avatars')->disk('avatars')->save();
+
+        Event::listen(function (\Statamic\Events\FormSubmitted $event) {
+            throw ValidationException::withMessages(['custom' => 'This is a custom message']);
+        });
+
+        $this->createForm([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'display' => 'One',
+                            'instructions' => 'One Instructions',
+                            'fields' => [
+                                ['handle' => 'alpha', 'field' => ['type' => 'text']],
+                                ['handle' => 'bravo', 'field' => ['type' => 'assets', 'container' => 'avatars']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], 'survey');
+
+        $this
+            ->post('/!/forms/survey', [
+                'alpha' => 'test',
+                'bravo' => UploadedFile::fake()->image('avatar.jpg'),
+            ]);
+
+        Storage::disk('avatars')->assertMissing('avatar.jpg');
     }
 }

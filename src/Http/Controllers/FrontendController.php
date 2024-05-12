@@ -3,6 +3,7 @@
 namespace Statamic\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Statamic\Auth\Protect\Protection;
 use Statamic\Exceptions\NotFoundHttpException;
 use Statamic\Facades\Data;
 use Statamic\Http\Responses\DataResponse;
@@ -30,6 +31,8 @@ class FrontendController extends Controller
             return $data;
         }
 
+        app(Protection::class)->protect();
+
         throw new NotFoundHttpException;
     }
 
@@ -38,7 +41,7 @@ class FrontendController extends Controller
         $params = $request->route()->parameters();
         $view = Arr::pull($params, 'view');
         $data = Arr::pull($params, 'data');
-        $data = array_merge($params, $data);
+        $data = array_merge($params, is_callable($data) ? $data(...$params) : $data);
 
         $view = app(View::class)
             ->template($view)

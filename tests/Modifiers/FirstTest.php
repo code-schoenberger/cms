@@ -9,6 +9,7 @@ class FirstTest extends TestCase
 {
     /**
      * @test
+     *
      * @dataProvider stringProvider
      */
     public function it_gets_the_first_n_characters_of_a_string($arg, $expected)
@@ -16,7 +17,7 @@ class FirstTest extends TestCase
         $this->assertEquals($expected, $this->modify('Testing', $arg));
     }
 
-    public function stringProvider()
+    public static function stringProvider()
     {
         return [
             [1, 'T'],
@@ -26,6 +27,7 @@ class FirstTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider arrayProvider
      */
     public function it_gets_the_first_value_of_an_array($value, $expected)
@@ -33,7 +35,7 @@ class FirstTest extends TestCase
         $this->assertEquals($expected, $this->modify($value));
     }
 
-    public function arrayProvider()
+    public static function arrayProvider()
     {
         return [
             'list' => [

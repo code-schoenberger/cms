@@ -3,6 +3,7 @@
 namespace Statamic\Taxonomies;
 
 use Statamic\Data\AbstractAugmented;
+use Statamic\Query\StatusQueryBuilder;
 use Statamic\Statamic;
 
 class AugmentedTerm extends AbstractAugmented
@@ -32,6 +33,7 @@ class AugmentedTerm extends AbstractAugmented
             'taxonomy',
             'edit_url',
             'locale',
+            'collection',
             'updated_at',
             'updated_by',
         ];
@@ -53,7 +55,7 @@ class AugmentedTerm extends AbstractAugmented
 
     protected function entries()
     {
-        return $this->data->queryEntries()->where('site', $this->data->locale());
+        return (new StatusQueryBuilder($this->data->queryEntries()))->where('site', $this->data->locale());
     }
 
     protected function isTerm()

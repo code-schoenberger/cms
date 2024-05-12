@@ -1,3 +1,5 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', Statamic::crumb(__('Configure Role'), __('Permissions')))
 
@@ -14,14 +16,6 @@
         breadcrumb-url="{{ cp_route('roles.index') }}"
         v-cloak
     >
-
-        <h1 class="flex-1" slot="heading" slot-scope="{ title }">
-            <div class="subhead">
-                <a href="{{ cp_route('roles.index') }}">{{ __('Roles & Permissions') }}</a>
-            </div>
-            @{{ title }}
-        </h1>
-
     </role-publish-form>
 
 @endsection

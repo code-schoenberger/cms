@@ -10,7 +10,8 @@ class CodeTest extends TestCase
 {
     /**
      * @test
-     * @dataProvider processValues
+     *
+     * @dataProvider processValuesProvider
      **/
     public function it_processes_values($isSelectable, $value, $expected)
     {
@@ -22,7 +23,7 @@ class CodeTest extends TestCase
         $this->assertEquals($expected, $field->process($value));
     }
 
-    public function processValues()
+    public static function processValuesProvider()
     {
         return [
             'selectable' => [true, ['code' => 'bar', 'mode' => 'htmlmixed'], ['code' => 'bar', 'mode' => 'htmlmixed']],
@@ -32,7 +33,8 @@ class CodeTest extends TestCase
 
     /**
      * @test
-     * @dataProvider preProcessValues
+     *
+     * @dataProvider preProcessValuesProvider
      **/
     public function it_preprocesses_values($value, $expected)
     {
@@ -41,7 +43,7 @@ class CodeTest extends TestCase
         $this->assertEquals($expected, $field->preProcess($value));
     }
 
-    public function preProcessValues()
+    public static function preProcessValuesProvider()
     {
         return [
             'string' => ['bar', ['code' => 'bar', 'mode' => 'htmlmixed']],

@@ -85,7 +85,7 @@ class ValuesTest extends TestCase
         ], $values->toArray());
     }
 
-    public function queryBuilderProvider()
+    public static function queryBuilderProvider()
     {
         return [
             'statamic' => [Mockery::mock(\Statamic\Query\Builder::class)],
@@ -182,6 +182,7 @@ class ValuesTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider queryBuilderProvider
      **/
     public function it_gets_a_query($builder)
@@ -215,6 +216,7 @@ class ValuesTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider queryBuilderProvider
      */
     public function completes_a_query($builder)

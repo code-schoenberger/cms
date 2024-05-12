@@ -9,6 +9,7 @@ class OrderByTest extends TestCase
 {
     /**
      * @test
+     *
      * @dataProvider parseProvider
      **/
     public function it_parses_string($string, $sort, $dir)
@@ -19,7 +20,7 @@ class OrderByTest extends TestCase
         $this->assertEquals($dir, $orderby->direction);
     }
 
-    public function parseProvider()
+    public static function parseProvider()
     {
         return [
             ['foo', 'foo', 'asc'],

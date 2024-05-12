@@ -248,6 +248,7 @@ trait LabeledValueTests
 
     /**
      * @test
+     *
      * @dataProvider noOptionsProvider
      **/
     public function it_augments_to_a_LabeledValue_object_with_no_options($options)
@@ -278,7 +279,7 @@ trait LabeledValueTests
         $this->assertEquals('missing', $augmented->label());
     }
 
-    public function noOptionsProvider()
+    public static function noOptionsProvider()
     {
         return [
             'empty_array' => [[]],

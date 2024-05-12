@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class IsPastTest extends TestCase
 {
-    public function dates(): array
+    public static function dates(): array
     {
         $futureDate = Carbon::createFromDate(2030, 10, 21);
         $pastDate = Carbon::createFromDate(2015, 10, 21);
@@ -26,6 +26,7 @@ class IsPastTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider dates
      */
     public function it_returns_true_if_date_is_past($expected, $input): void

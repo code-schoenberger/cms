@@ -15,6 +15,7 @@ class PathTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider extensionProvider
      */
     public function it_gets_the_extension($path, $extension)
@@ -22,7 +23,7 @@ class PathTest extends TestCase
         $this->assertSame($extension, Path::extension($path));
     }
 
-    public function extensionProvider()
+    public static function extensionProvider()
     {
         return [
             'with extension' => ['path.ext', 'ext'],

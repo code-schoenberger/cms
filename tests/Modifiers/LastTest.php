@@ -9,6 +9,7 @@ class LastTest extends TestCase
 {
     /**
      * @test
+     *
      * @dataProvider stringProvider
      */
     public function it_gets_the_last_n_characters_of_a_string($arg, $expected)
@@ -16,7 +17,7 @@ class LastTest extends TestCase
         $this->assertEquals($expected, $this->modify('Testing', $arg));
     }
 
-    public function stringProvider()
+    public static function stringProvider()
     {
         return [
             [1, 'g'],
@@ -27,6 +28,7 @@ class LastTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider arrayProvider
      */
     public function it_gets_the_last_value_of_an_array($value, $expected)
@@ -34,7 +36,7 @@ class LastTest extends TestCase
         $this->assertEquals($expected, $this->modify($value));
     }
 
-    public function arrayProvider()
+    public static function arrayProvider()
     {
         return [
             'list' => [

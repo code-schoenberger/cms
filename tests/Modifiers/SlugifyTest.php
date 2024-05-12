@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class SlugifyTest extends TestCase
 {
-    public function wordsDontComeEasyToMe(): array
+    public static function wordsDontComeEasyToMeProvider(): array
     {
         return [
             ['please-have-some-lemonade', 'Please, have some lemoñade.'],
@@ -16,7 +16,8 @@ class SlugifyTest extends TestCase
 
     /**
      * @test
-     * @dataProvider wordsDontComeEasyToMe
+     *
+     * @dataProvider wordsDontComeEasyToMeProvider
      */
     public function it_converts_the_string_to_an_url_slug($expected, $input): void
     {

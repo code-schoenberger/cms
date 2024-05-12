@@ -31,7 +31,6 @@ class DefaultCacher extends AbstractCacher
     /**
      * Handle event based API cache invalidation.
      *
-     * @param  Event  $event
      * @return void
      */
     public function handleInvalidationEvent(Event $event)
@@ -88,7 +87,6 @@ class DefaultCacher extends AbstractCacher
     /**
      * Get cache key for endpoint.
      *
-     * @param  Request  $request
      * @return string
      */
     protected function getCacheKey(Request $request)
@@ -96,7 +94,7 @@ class DefaultCacher extends AbstractCacher
         $domain = $request->root();
         $fullUrl = $request->fullUrl();
 
-        $key = str_replace($domain, '', $fullUrl);
+        $key = md5(str_replace($domain, '', $fullUrl));
 
         return $this->normalizeKey($key);
     }

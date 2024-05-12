@@ -2,13 +2,8 @@
 
 namespace Statamic\Http\Controllers\CP\Updater;
 
-use Facades\Statamic\Console\Processes\Composer;
 use Facades\Statamic\Marketplace\Marketplace;
-use Illuminate\Http\Request;
-use Statamic\Facades\Addon;
 use Statamic\Http\Controllers\CP\CpController;
-use Statamic\Statamic;
-use Statamic\Updater\Updater;
 
 class UpdateProductController extends CpController
 {
@@ -17,16 +12,16 @@ class UpdateProductController extends CpController
      *
      * @param  string  $slug
      */
-    public function show($slug)
+    public function show($marketplaceProductSlug)
     {
         $this->authorize('view updates');
 
-        if (! $product = Marketplace::product($slug)) {
+        if (! $product = Marketplace::product($marketplaceProductSlug)) {
             return $this->pageNotFound();
         }
 
         return view('statamic::updater.show', [
-            'slug' => $slug,
+            'slug' => $marketplaceProductSlug,
             'package' => $product->package(),
             'name' => $product->name(),
         ]);
@@ -37,11 +32,11 @@ class UpdateProductController extends CpController
      *
      * @param  string  $slug
      */
-    public function changelog($slug)
+    public function changelog($marketplaceProductSlug)
     {
         $this->authorize('view updates');
 
-        if (! $product = Marketplace::product($slug)) {
+        if (! $product = Marketplace::product($marketplaceProductSlug)) {
             return $this->pageNotFound();
         }
 
@@ -50,35 +45,6 @@ class UpdateProductController extends CpController
         return [
             'changelog' => $changelog->get(),
             'currentVersion' => $changelog->currentVersion(),
-            'lastInstallLog' => Composer::lastCompletedCachedOutput($product->package())['output'],
         ];
-    }
-
-    /**
-     * Install explicit version.
-     *
-     * @param  string  $product
-     * @param  Request  $request
-     */
-    public function install($product, Request $request)
-    {
-        $this->authorize('perform updates');
-
-        $package = $product === Statamic::CORE_SLUG ? Statamic::PACKAGE : $this->getAddon($product)->package();
-
-        return Updater::package($package)->install($request->version);
-    }
-
-    /**
-     * Get updatable addon from product slug.
-     *
-     * @param  string  $product
-     * @return \Illuminate\Support\Collection
-     */
-    private function getAddon($product)
-    {
-        return Addon::all()->first(function ($addon) use ($product) {
-            return $addon->slug() === $product;
-        });
     }
 }

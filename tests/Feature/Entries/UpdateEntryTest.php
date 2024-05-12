@@ -9,7 +9,10 @@ use Statamic\Events\EntrySaving;
 use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
+use Statamic\Facades\Role;
+use Statamic\Facades\Site;
 use Statamic\Facades\User;
+use Statamic\Structures\CollectionStructure;
 use Tests\FakesRoles;
 use Tests\PreventSavingStacheItemsToDisk;
 use Tests\TestCase;
@@ -20,11 +23,37 @@ class UpdateEntryTest extends TestCase
     use PreventSavingStacheItemsToDisk;
 
     /** @test */
-    public function it_denies_access_if_you_dont_have_permission()
+    public function it_denies_access_if_you_dont_have_edit_permission()
     {
         $this->setTestRoles(['test' => ['access cp']]);
         $user = tap(User::make()->assignRole('test'))->save();
         $collection = tap(Collection::make('test'))->save();
+
+        $entry = EntryFactory::collection($collection)
+            ->slug('existing-entry')
+            ->data(['title' => 'Existing Entry'])
+            ->create();
+
+        $this
+            ->actingAs($user)
+            ->update($entry)
+            ->assertForbidden();
+
+        $this->assertCount(1, Entry::all());
+        $this->assertEquals('Existing Entry', $entry->fresh()->value('title'));
+    }
+
+    /** @test */
+    public function it_denies_access_if_you_dont_have_site_permission()
+    {
+        Site::setConfig(['sites' => [
+            'en' => ['url' => '/', 'locale' => 'en_US', 'name' => 'English'],
+            'fr' => ['url' => '/', 'locale' => 'fr_FR', 'name' => 'French'],
+        ]]);
+
+        [$user, $collection] = $this->seedUserAndCollection();
+        $collection->sites(['en', 'fr'])->save();
+        Role::find('test')->removePermission('access en site');
 
         $entry = EntryFactory::collection($collection)
             ->slug('existing-entry')
@@ -88,6 +117,47 @@ class UpdateEntryTest extends TestCase
         $this->assertEquals('Foo Bar Baz', $entry->value('title'));
         $this->assertEquals('foo-bar-baz', $entry->slug());
         $this->assertEquals('foo-bar-baz.md', pathinfo($entry->path(), PATHINFO_BASENAME));
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider multipleSlugLangsProvider
+     */
+    public function slug_is_not_required_and_will_get_created_from_the_submitted_title_and_correct_language_if_slug_is_in_the_blueprint_and_the_submitted_slug_was_empty($lang, $expectedSlug)
+    {
+        Site::setConfig(['sites' => [
+            'en' => array_merge(config('statamic.sites.sites.en'), ['lang' => $lang]),
+        ]]);
+
+        [$user, $collection] = $this->seedUserAndCollection();
+
+        $entry = EntryFactory::collection($collection)
+            ->slug('existing-entry')
+            ->data(['title' => 'Existing Entry'])
+            ->create();
+
+        $this->assertTrue($entry->blueprint()->hasField('slug'));
+        $this->assertCount(1, Entry::all());
+
+        $this
+            ->actingAs($user)
+            ->update($entry, ['title' => 'Foo Bar Baz æøå', 'slug' => ''])
+            ->assertOk();
+
+        $this->assertCount(1, Entry::all());
+        $entry = $entry->fresh();
+        $this->assertEquals('Foo Bar Baz æøå', $entry->value('title'));
+        $this->assertEquals($expectedSlug, $entry->slug());
+        $this->assertEquals($expectedSlug.'.md', pathinfo($entry->path(), PATHINFO_BASENAME));
+    }
+
+    public static function multipleSlugLangsProvider()
+    {
+        return [
+            'English' => ['en', 'foo-bar-baz-aeoa'],
+            'Danish' => ['da', 'foo-bar-baz-aeoeaa'], // danish replaces æøå with aeoeaa
+        ];
     }
 
     /** @test */
@@ -201,6 +271,60 @@ class UpdateEntryTest extends TestCase
     }
 
     /** @test */
+    public function auto_title_only_gets_saved_on_localization_when_different_from_origin()
+    {
+        Site::setConfig(['sites' => [
+            'en' => ['locale' => 'en', 'url' => '/'],
+            'fr' => ['locale' => 'fr', 'url' => '/fr/'],
+        ]]);
+
+        [$user, $collection] = $this->seedUserAndCollection();
+        $collection->sites(['en', 'fr']);
+        $collection->titleFormats('Auto {foo}')->save();
+
+        $this->seedBlueprintFields($collection, [
+            'foo' => ['type' => 'text'],
+        ]);
+
+        $origin = EntryFactory::collection($collection)
+            ->locale('en')
+            ->slug('origin')
+            ->data(['foo' => 'bar'])
+            ->create();
+
+        $localization = EntryFactory::collection($collection)
+            ->locale('fr')
+            ->origin($origin)
+            ->slug('localization')
+            ->create();
+
+        $this
+            ->actingAs($user)
+            ->update($localization, [
+                'foo' => 'le bar',
+                '_localized' => ['foo'],
+            ])
+            ->assertOk();
+
+        $localization = $localization->fresh();
+        $this->assertEquals('le bar', $localization->foo);
+        $this->assertEquals('Auto le bar', $localization->title);
+        $this->assertEquals('Auto le bar', $localization->get('title'));
+
+        $this
+            ->actingAs($user)
+            ->update($localization, [
+                '_localized' => [], // foo is intentionally missing
+            ])
+            ->assertOk();
+
+        $localization = $localization->fresh();
+        $this->assertEquals('bar', $localization->foo);
+        $this->assertEquals('Auto bar', $localization->title);
+        $this->assertNull($localization->get('title'));
+    }
+
+    /** @test */
     public function it_can_validate_against_published_value()
     {
         [$user, $collection] = $this->seedUserAndCollection();
@@ -244,9 +368,78 @@ class UpdateEntryTest extends TestCase
         $this->markTestIncomplete();
     }
 
+    /** @test */
+    public function validates_max_depth()
+    {
+        [$user, $collection] = $this->seedUserAndCollection();
+
+        $structure = (new CollectionStructure)->maxDepth(2)->expectsRoot(true);
+        $collection->structure($structure)->save();
+
+        EntryFactory::collection('test')->id('home')->slug('home')->data(['title' => 'Home', 'foo' => 'bar'])->create();
+        EntryFactory::collection('test')->id('about')->slug('about')->data(['title' => 'About', 'foo' => 'baz'])->create();
+        EntryFactory::collection('test')->id('team')->slug('team')->data(['title' => 'Team'])->create();
+
+        $entry = EntryFactory::collection($collection)
+            ->id('existing-entry')
+            ->slug('existing-entry')
+            ->data(['title' => 'Existing Entry', 'foo' => 'bar'])
+            ->create();
+
+        $collection->structure()->in('en')->tree([
+            ['entry' => 'home'],
+            ['entry' => 'about', 'children' => [
+                ['entry' => 'team'],
+            ]],
+            ['entry' => 'existing-entry'],
+        ])->save();
+
+        $this
+            ->actingAs($user)
+            ->update($entry, ['title' => 'Existing Entry', 'slug' => 'existing-entry', 'parent' => ['team']]) // This would make it 3 levels deep, so it should fail.
+            ->assertUnprocessable();
+    }
+
+    /** @test */
+    public function does_not_validate_max_depth_when_collection_max_depth_is_null()
+    {
+        [$user, $collection] = $this->seedUserAndCollection();
+
+        $structure = (new CollectionStructure)->expectsRoot(true);
+        $collection->structure($structure)->save();
+
+        EntryFactory::collection('test')->id('home')->slug('home')->data(['title' => 'Home', 'foo' => 'bar'])->create();
+        EntryFactory::collection('test')->id('about')->slug('about')->data(['title' => 'About', 'foo' => 'baz'])->create();
+        EntryFactory::collection('test')->id('team')->slug('team')->data(['title' => 'Team'])->create();
+
+        $entry = EntryFactory::collection($collection)
+            ->id('existing-entry')
+            ->slug('existing-entry')
+            ->data(['title' => 'Existing Entry', 'foo' => 'bar'])
+            ->create();
+
+        $collection->structure()->in('en')->tree([
+            ['entry' => 'home'],
+            ['entry' => 'about', 'children' => [
+                ['entry' => 'team'],
+            ]],
+            ['entry' => 'existing-entry'],
+        ])->save();
+
+        $this
+            ->actingAs($user)
+            ->update($entry, ['title' => 'Existing Entry', 'slug' => 'existing-entry', 'parent' => ['team']]) // Since we have no max depth set, this should be fine.
+            ->assertOk();
+    }
+
     private function seedUserAndCollection()
     {
-        $this->setTestRoles(['test' => ['access cp', 'edit test entries']]);
+        $this->setTestRoles(['test' => [
+            'access cp',
+            'edit test entries',
+            'access en site',
+            'access fr site',
+        ]]);
         $user = tap(User::make()->assignRole('test'))->save();
         $collection = tap(Collection::make('test'))->save();
 

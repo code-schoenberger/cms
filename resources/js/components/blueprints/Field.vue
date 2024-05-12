@@ -10,8 +10,10 @@ export default {
             type: Boolean,
             default: true
         },
-        isEditing: Boolean,
-        isSectionExpanded: Boolean
+        fields: {
+            type: Array,
+        },
+        isEditing: Boolean
     }
 
 }

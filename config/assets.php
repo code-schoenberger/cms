@@ -43,6 +43,21 @@ return [
 
         /*
         |--------------------------------------------------------------------------
+        | Additional Image Extensions
+        |--------------------------------------------------------------------------
+        |
+        | Define any additional image file extensions you would like Statamic to
+        | process. You should ensure that both your server and the selected
+        | image manipulation driver properly supports these extensions.
+        |
+        */
+
+        'additional_extensions' => [
+            // 'heic',
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
         | Save Cached Images
         |--------------------------------------------------------------------------
         |
@@ -78,6 +93,7 @@ return [
         | Rather than specifying your manipulation params in your templates with
         | the glide tag, you may define them here and reference their handles.
         | They may also be automatically generated when you upload assets.
+        | Containers can be configured to warm these caches on upload.
         |
         */
 
@@ -97,6 +113,18 @@ return [
         */
 
         'generate_presets_on_upload' => true,
+
+        /*
+        |--------------------------------------------------------------------------
+        | Append Original Filename
+        |--------------------------------------------------------------------------
+        |
+        | Append the original filename to Glide generated URLs.
+        | This helps with Search Engine Optimization.
+        |
+        */
+
+        'append_original_filename' => false,
 
     ],
 
@@ -181,5 +209,30 @@ return [
     */
 
     'lowercase' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Additional Uploadable Extensions
+    |--------------------------------------------------------------------------
+    |
+    | Statamic will only allow uploads of certain approved file extensions.
+    | If you need to allow more file extensions, you may add them here.
+    |
+    */
+
+    'additional_uploadable_extensions' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | SVG Sanitization
+    |--------------------------------------------------------------------------
+    |
+    | Statamic will automatically sanitize SVG files when uploaded to avoid
+    | potential security issues. However, if you have a valid reason for
+    | disabling this, and you trust your users, you may do so here.
+    |
+    */
+
+    'svg_sanitization_on_upload' => true,
 
 ];

@@ -112,12 +112,12 @@ class ParserErrorsTest extends ParserTestCase
     {
         $this->assertThrowsParserError(<<<'EOT'
 {{
-    datetime:parse("October 12, 2001"):
+    datetime:parse("October 12, 2001")::
             addDays(10):
             toAtomString()
 }}
 EOT
-);
+        );
     }
 
     public function test_incorrectly_chained_methods_throws_error_dot_syntax()
@@ -148,7 +148,7 @@ EOT
         $this->assertThrowsParserError(<<<'EOT'
 {{ some_value | modifier: "string" "string" }}
 EOT
-);
+        );
     }
 
     public function test_neighboring_numeric_throws_parser_error_in_modifiers()
@@ -193,5 +193,25 @@ EOT;
     public function test_modifier_method_syntax_with_extra_tokens_throws_error()
     {
         $this->assertThrowsParserError('{{ title | modifier_name(param1, param2) : something_else }}');
+    }
+
+    public function test_shorthand_parameters_cannot_have_special_characters()
+    {
+        $this->assertThrowsParserError('{{ tag_name :$thing="that" }}');
+    }
+
+    public function test_shorthand_parameters_cannot_start_with_numbers()
+    {
+        $this->assertThrowsParserError('{{ tag_name :$1thing }}');
+    }
+
+    public function test_incomplete_shorthand_parameters_throws_error()
+    {
+        $this->assertThrowsParserError('{{ tag_name :$ }}');
+    }
+
+    public function test_incomplete_shorthand_parameters_throws_error_two()
+    {
+        $this->assertThrowsParserError('{{ tag_name :$}}');
     }
 }

@@ -1,9 +1,11 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', __('Duplicate IDs'))
 
 @section('content')
 
-    <header class="mb-3">
+    <header class="mb-6">
         <div class="flex items-center justify-between">
             <h1>{{ __('Duplicate IDs') }}</h1>
         </div>
@@ -16,16 +18,16 @@
     @endif
 
     @foreach ($duplicates as $id => $paths)
-        <h6 class="mt-4">{{ $id }}</h6>
+        <h6 class="mt-8">{{ $id }}</h6>
 
-        <div class="card p-0 mt-1">
+        <div class="card p-0 mt-2">
             <table class="data-table">
                 @foreach ($paths as $path)
                     <tr>
                         <td class="font-mono text-xs">
                             {{ $path }}
                         </td>
-                        <td class="text-right text-2xs">
+                        <td class="rtl:text-left ltr:text-right text-2xs">
                             <form method="POST" action="{{ cp_route('duplicates.regenerate') }}">
                                 @csrf
                                 <input type="hidden" name="path" value="{{ $path }}" />

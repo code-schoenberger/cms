@@ -5,6 +5,7 @@ namespace Tests\Assets;
 use BadMethodCallException;
 use Carbon\Carbon;
 use Facades\Statamic\Fields\BlueprintRepository;
+use Facades\Statamic\Imaging\ImageValidator;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -16,10 +17,14 @@ use Statamic\Assets\Asset;
 use Statamic\Assets\AssetContainer;
 use Statamic\Assets\PendingMeta;
 use Statamic\Assets\ReplacementFile;
+use Statamic\Events\AssetCreated;
+use Statamic\Events\AssetCreating;
 use Statamic\Events\AssetDeleted;
+use Statamic\Events\AssetDeleting;
 use Statamic\Events\AssetReplaced;
 use Statamic\Events\AssetReuploaded;
 use Statamic\Events\AssetSaved;
+use Statamic\Events\AssetSaving;
 use Statamic\Events\AssetUploaded;
 use Statamic\Exceptions\FileExtensionMismatch;
 use Statamic\Facades;
@@ -29,6 +34,7 @@ use Statamic\Facades\YAML;
 use Statamic\Fields\Blueprint;
 use Statamic\Fields\Fieldtype;
 use Statamic\Fields\Value;
+use Statamic\Fieldtypes\Assets\DimensionsRule;
 use Statamic\Support\Arr;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\PreventSavingStacheItemsToDisk;
@@ -296,7 +302,8 @@ class AssetTest extends TestCase
 
     /**
      * @test
-     * @dataProvider reAddRemovedData
+     *
+     * @dataProvider reAddRemovedDataProvider
      **/
     public function it_doesnt_try_to_re_remove_newly_added_data_from_meta($reAddRemovedData)
     {
@@ -338,7 +345,7 @@ class AssetTest extends TestCase
         $this->assertEquals(123, $asset->getRawMeta()['size']);
     }
 
-    public function reAddRemovedData()
+    public static function reAddRemovedDataProvider()
     {
         return [
             'by calling set method' => [fn ($asset) => $asset->set('one', 'new-foo')],
@@ -382,6 +389,7 @@ class AssetTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider queryBuilderProvider
      **/
     public function it_has_magic_property_and_methods_for_fields_that_augment_to_query_builders($builder)
@@ -410,7 +418,7 @@ class AssetTest extends TestCase
         $this->assertSame($builder, $asset->foo());
     }
 
-    public function queryBuilderProvider()
+    public static function queryBuilderProvider()
     {
         return [
             'statamic' => [Mockery::mock(\Statamic\Query\Builder::class)],
@@ -558,6 +566,7 @@ class AssetTest extends TestCase
     public function it_gets_the_extension_guessed_extension_and_mime_type()
     {
         Storage::fake('test');
+        Storage::disk('test')->put('foo.mp4a', '');
         Storage::disk('test')->put('.meta/foo.mp4a.yaml', YAML::dump(['mime_type' => 'audio/mp4']));
 
         $container = Facades\AssetContainer::make('test')->disk('test');
@@ -694,7 +703,7 @@ class AssetTest extends TestCase
         ]));
         $container = Facades\AssetContainer::make('test')->disk('test');
         $asset = (new Asset)->container($container)->path('foo/test.txt');
-        Facades\Asset::shouldReceive('save')->with($asset);
+        Facades\Asset::partialMock()->shouldReceive('save')->with($asset);
         $asset->save();
 
         $this->assertEquals($expectedBeforeMerge, $asset->meta());
@@ -714,6 +723,33 @@ class AssetTest extends TestCase
         ];
 
         $this->assertEquals($expectedAfterMerge, $asset->meta());
+    }
+
+    /** @test */
+    public function it_does_not_write_to_meta_file_when_asset_does_not_exist()
+    {
+        Storage::fake('test');
+
+        $container = Facades\AssetContainer::make('test')->disk('test');
+        $asset = (new Asset)->container($container)->path('foo/test.txt');
+
+        // No meta file should exist yet...
+        $this->assertFalse(Storage::disk('test')->exists('foo/.meta/test.txt.yaml'));
+
+        // Calling `meta` should return an empty meta array, but not write a meta file...
+        $meta = $asset->meta();
+        $this->assertEquals(['data' => []], $meta);
+        $this->assertFalse(Storage::disk('test')->exists('foo/.meta/test.txt.yaml'));
+    }
+
+    /** @test */
+    public function it_gets_meta_path()
+    {
+        $asset = (new Asset)->container($this->container)->path('test.txt');
+        $this->assertEquals('.meta/test.txt.yaml', $asset->metaPath());
+
+        $asset = (new Asset)->container($this->container)->path('foo/test.txt');
+        $this->assertEquals('foo/.meta/test.txt.yaml', $asset->metaPath());
     }
 
     /** @test */
@@ -822,17 +858,50 @@ class AssetTest extends TestCase
         Storage::fake('test');
         $container = Facades\AssetContainer::make('test')->disk('test');
         $asset = (new Asset)->container($container)->path('foo.jpg');
-        Facades\Asset::shouldReceive('save')->with($asset);
+        Facades\Asset::partialMock()->shouldReceive('save')->with($asset);
 
         $return = $asset->save();
 
         $this->assertTrue($return);
 
+        Event::assertDispatched(AssetSaving::class, function ($event) use ($asset) {
+            return $event->asset = $asset;
+        });
+
         Event::assertDispatched(AssetSaved::class, function ($event) use ($asset) {
             return $event->asset = $asset;
         });
 
+        Event::assertDispatched(AssetCreating::class, function ($event) use ($asset) {
+            return $event->asset = $asset;
+        });
+
+        Event::assertDispatched(AssetCreated::class, function ($event) use ($asset) {
+            return $event->asset = $asset;
+        });
         // Assertion about the meta file is in the AssetRepository test
+    }
+
+    /** @test */
+    public function it_doesnt_save_when_asset_saving_event_returns_false()
+    {
+        Event::fake([AssetSaved::class]);
+        Storage::fake('test');
+        $container = Facades\AssetContainer::make('test')->disk('test');
+        $asset = (new Asset)->container($container)->path('foo.jpg');
+        Facades\Asset::partialMock()->shouldReceive('save')->with($asset);
+
+        Event::listen(AssetSaving::class, function ($event) {
+            return false;
+        });
+
+        $return = $asset->save();
+
+        $this->assertFalse($return);
+
+        Event::assertNotDispatched(AssetSaved::class, function ($event) use ($asset) {
+            return $event->asset = $asset;
+        });
     }
 
     /** @test */
@@ -842,23 +911,24 @@ class AssetTest extends TestCase
         Storage::fake('test');
         $container = Facades\AssetContainer::make('test')->disk('test');
         $asset = (new Asset)->container($container)->path('foo.jpg');
-        Facades\Asset::shouldReceive('save')->with($asset);
+        Facades\Asset::partialMock()->shouldReceive('save')->with($asset);
 
         $return = $asset->saveQuietly();
 
         $this->assertTrue($return);
 
         Event::assertNotDispatched(AssetSaved::class);
+        Event::assertNotDispatched(AssetSaving::class);
     }
 
     /** @test */
-    public function when_saving_quietly_the_cached_assetss_withEvents_flag_will_be_set_back_to_true()
+    public function when_saving_quietly_the_cached_assets_withEvents_flag_will_be_set_back_to_true()
     {
         Event::fake();
         Storage::fake('test');
         $container = Facades\AssetContainer::make('test')->disk('test');
         $asset = (new Asset)->container($container)->path('foo.jpg');
-        Facades\Asset::shouldReceive('save')->with($asset);
+        Facades\Asset::partialMock()->shouldReceive('save')->with($asset);
 
         $return = $asset->saveQuietly();
 
@@ -922,7 +992,53 @@ class AssetTest extends TestCase
             'path/to',
             'path/to/another-asset.txt',
         ], $container->contents()->cached()->keys()->all());
+        Event::assertDispatched(AssetDeleting::class);
         Event::assertDispatched(AssetDeleted::class);
+    }
+
+    /** @test */
+    public function it_deletes_quietly()
+    {
+        Event::fake();
+        Storage::fake('local');
+        $disk = Storage::disk('local');
+        $disk->put('path/to/asset.txt', '');
+        $disk->put('path/to/another-asset.txt', '');
+        $container = Facades\AssetContainer::make('test')->disk('local');
+        Facades\AssetContainer::shouldReceive('save')->with($container);
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test')->andReturn($container);
+        $asset = (new Asset)->container($container)->path('path/to/asset.txt');
+        $disk->assertExists('path/to/asset.txt');
+        $this->assertEquals([
+            'path/to/another-asset.txt',
+            'path/to/asset.txt',
+        ], $container->files()->all());
+        $this->assertEquals([
+            'path/to/asset.txt' => [],
+            'path/to/another-asset.txt' => [],
+        ], $container->assets('/', true)->keyBy->path()->map(function ($item) {
+            return $item->data()->all();
+        })->all());
+
+        $return = $asset->deleteQuietly();
+
+        $this->assertEquals($asset, $return);
+        $disk->assertMissing('path/to/asset.txt');
+        $this->assertEquals([
+            'path/to/another-asset.txt',
+        ], $container->files()->all());
+        $this->assertEquals([
+            'path/to/another-asset.txt' => [],
+        ], $container->assets('/', true)->keyBy->path()->map(function ($item) {
+            return $item->data()->all();
+        })->all());
+        $this->assertEquals([
+            'path',
+            'path/to',
+            'path/to/another-asset.txt',
+        ], $container->contents()->cached()->keys()->all());
+        Event::assertNotDispatched(AssetDeleting::class);
+        Event::assertNotDispatched(AssetDeleted::class);
     }
 
     /** @test */
@@ -1369,6 +1485,15 @@ class AssetTest extends TestCase
     }
 
     /** @test */
+    public function it_passes_the_dimensions_validation()
+    {
+        $file = UploadedFile::fake()->image('image.jpg', 30, 60);
+        $validDimensions = (new DimensionsRule(['max_width=10']))->passes('Image', [$file]);
+
+        $this->assertFalse($validDimensions);
+    }
+
+    /** @test */
     public function it_gets_dimensions_for_svgs()
     {
         Storage::fake('test')->put('foo/image.svg', '<svg width="30" height="60"></svg>');
@@ -1384,6 +1509,7 @@ class AssetTest extends TestCase
     public function it_gets_no_ratio_when_height_is_zero()
     {
         Storage::fake('test');
+        Storage::disk('test')->put('image.jpg', '');
         Storage::disk('test')->put('.meta/image.jpg.yaml', YAML::dump(['width' => '30', 'height' => '0']));
 
         $container = Facades\AssetContainer::make('test')->disk('test');
@@ -1571,6 +1697,31 @@ class AssetTest extends TestCase
         $this->uploadFileTest();
     }
 
+    /** @test */
+    public function if_saving_event_returns_false_during_upload_the_asset_doesnt_save()
+    {
+        Event::fake([AssetSaved::class, AssetUploaded::class, AssetCreated::class]);
+
+        Event::listen(AssetCreating::class, function ($event) {
+            return false;
+        });
+
+        $asset = (new Asset)->container($this->container)->path('path/to/asset.jpg')->syncOriginal();
+
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
+        Storage::disk('test')->assertMissing('path/to/asset.jpg');
+
+        $return = $asset->upload(UploadedFile::fake()->image('asset.jpg', 13, 15));
+
+        $this->assertFalse($return);
+
+        Storage::disk('test')->assertMissing('path/to/asset.jpg');
+
+        Event::assertNotDispatched(AssetSaved::class);
+        Event::assertNotDispatched(AssetUploaded::class);
+        Event::assertNotDispatched(AssetCreated::class);
+    }
+
     private function uploadFileTest()
     {
         Event::fake();
@@ -1578,6 +1729,9 @@ class AssetTest extends TestCase
 
         Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
         Storage::disk('test')->assertMissing('path/to/asset.jpg');
+
+        // This should only get called when glide processing source image on upload...
+        ImageValidator::partialMock()->shouldReceive('isValidImage')->never();
 
         $return = $asset->upload(UploadedFile::fake()->image('asset.jpg', 13, 15));
 
@@ -1604,10 +1758,249 @@ class AssetTest extends TestCase
             'path/to',
             'path/to/asset.jpg',
         ], Cache::get('asset-list-contents-test_container')->keys()->all());
+
+        Event::assertDispatched(AssetCreating::class, fn ($event) => $event->asset === $asset);
+        Event::assertDispatched(AssetSaved::class, fn ($event) => $event->asset === $asset);
+        Event::assertDispatched(AssetUploaded::class, fn ($event) => $event->asset === $asset);
+        Event::assertDispatched(AssetCreated::class, fn ($event) => $event->asset === $asset);
+    }
+
+    /** @test */
+    public function it_can_upload_an_image_into_a_container_with_glide_config()
+    {
+        Event::fake();
+
+        config(['statamic.assets.image_manipulation.presets.small' => [
+            'w' => '15',
+            'h' => '15',
+        ]]);
+
+        $this->container->sourcePreset('small');
+
+        $asset = (new Asset)->container($this->container)->path('path/to/asset.jpg')->syncOriginal();
+
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
+        Storage::disk('test')->assertMissing('path/to/asset.jpg');
+
+        ImageValidator::partialMock()
+            ->shouldReceive('isValidImage')
+            ->with('jpg', 'image/jpeg')
+            ->andReturnTrue()
+            ->once();
+
+        $return = $asset->upload(UploadedFile::fake()->image('asset.jpg', 20, 30));
+
+        $this->assertEquals($asset, $return);
+        $this->assertDirectoryExists($glideDir = storage_path('statamic/glide/tmp'));
+        $this->assertEmpty(app('files')->allFiles($glideDir)); // no temp files
+        Storage::disk('test')->assertExists('path/to/asset.jpg');
+        $this->assertEquals('path/to/asset.jpg', $asset->path());
         Event::assertDispatched(AssetUploaded::class, function ($event) use ($asset) {
             return $event->asset = $asset;
         });
         Event::assertDispatched(AssetSaved::class);
+        $meta = $asset->meta();
+
+        $this->assertEquals(10, $meta['width']);
+        $this->assertEquals(15, $meta['height']);
+    }
+
+    public static function formatParamsProvider()
+    {
+        return [['format'], ['fm']];
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider formatParamsProvider
+     **/
+    public function it_can_upload_an_image_into_a_container_with_new_extension_format($formatParam)
+    {
+        Event::fake();
+
+        config(['statamic.assets.image_manipulation.presets.enforce_png' => [
+            $formatParam => 'png',
+        ]]);
+
+        $this->container->sourcePreset('enforce_png');
+
+        $asset = (new Asset)->container($this->container)->path('path/to/asset.jpg')->syncOriginal();
+
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
+        Storage::disk('test')->assertMissing('path/to/asset.jpg');
+
+        ImageValidator::partialMock()
+            ->shouldReceive('isValidImage')
+            ->with('jpg', 'image/jpeg')
+            ->andReturnTrue()
+            ->once();
+
+        $return = $asset->upload(UploadedFile::fake()->image('asset.jpg', 20, 30));
+
+        $this->assertEquals($asset, $return);
+        $this->assertDirectoryExists($glideDir = storage_path('statamic/glide/tmp'));
+        $this->assertEmpty(app('files')->allFiles($glideDir)); // no temp files
+        Storage::disk('test')->assertMissing('path/to/asset.jpg');
+        Storage::disk('test')->assertExists('path/to/asset.png');
+        $this->assertEquals('path/to/asset.png', $asset->path());
+        Event::assertDispatched(AssetUploaded::class, function ($event) use ($asset) {
+            return $event->asset = $asset;
+        });
+        Event::assertDispatched(AssetSaved::class);
+    }
+
+    /** @test */
+    public function it_sanitizes_svgs_on_upload()
+    {
+        Event::fake();
+
+        $asset = (new Asset)->container($this->container)->path('path/to/asset.svg')->syncOriginal();
+
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
+        Storage::disk('test')->assertMissing('path/to/asset.svg');
+
+        $return = $asset->upload(UploadedFile::fake()->createWithContent('asset.svg', '<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><script type="text/javascript">alert(`Bad stuff could go in here.`);</script></svg>'));
+
+        $this->assertEquals($asset, $return);
+        Storage::disk('test')->assertExists('path/to/asset.svg');
+        $this->assertEquals('path/to/asset.svg', $asset->path());
+
+        // Ensure the inline scripts were stripped out.
+        $this->assertStringNotContainsString('<script', $asset->contents());
+        $this->assertStringNotContainsString('Bad stuff could go in here.', $asset->contents());
+        $this->assertStringNotContainsString('</script>', $asset->contents());
+    }
+
+    /** @test */
+    public function it_does_not_sanitizes_svgs_on_upload_when_behaviour_is_disabled()
+    {
+        Event::fake();
+
+        config()->set('statamic.assets.svg_sanitization_on_upload', false);
+
+        $asset = (new Asset)->container($this->container)->path('path/to/asset.svg')->syncOriginal();
+
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
+        Storage::disk('test')->assertMissing('path/to/asset.svg');
+
+        $return = $asset->upload(UploadedFile::fake()->createWithContent('asset.svg', '<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><script type="text/javascript">alert(`Bad stuff could go in here.`);</script></svg>'));
+
+        $this->assertEquals($asset, $return);
+        Storage::disk('test')->assertExists('path/to/asset.svg');
+        $this->assertEquals('path/to/asset.svg', $asset->path());
+
+        // Ensure the inline scripts were stripped out.
+        $this->assertStringContainsString('<script', $asset->contents());
+        $this->assertStringContainsString('Bad stuff could go in here.', $asset->contents());
+        $this->assertStringContainsString('</script>', $asset->contents());
+    }
+
+    public static function nonGlideableFileExtensionsProvider()
+    {
+        return [
+            ['txt'], // not an image
+            ['md'],  // not an image
+            ['svg'], // doesn't work with imagick without extra server config
+            ['pdf'], // doesn't work with imagick without extra server config
+        ];
+    }
+
+    /**
+     * @test
+     *
+     * @dataProvider nonGlideableFileExtensionsProvider
+     **/
+    public function it_doesnt_process_or_error_when_uploading_non_glideable_file_with_glide_config($extension)
+    {
+        Event::fake();
+
+        config(['statamic.assets.image_manipulation.presets.small' => [
+            'w' => '15',
+            'h' => '15',
+        ]]);
+
+        $this->container->sourcePreset('small');
+
+        $asset = (new Asset)->container($this->container)->path("path/to/file.{$extension}")->syncOriginal();
+
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
+        Storage::disk('test')->assertMissing("path/to/file.{$extension}");
+
+        // Ensure a glide server is never instantiated for these extensions...
+        Facades\Glide::partialMock()->shouldReceive('server')->never();
+
+        $return = $asset->upload(UploadedFile::fake()->createWithContent("file.{$extension}", '<svg width="20" height="30"></svg>'));
+
+        $this->assertEquals($asset, $return);
+        $this->assertDirectoryExists($glideDir = storage_path('statamic/glide/tmp'));
+        $this->assertEmpty(app('files')->allFiles($glideDir)); // no temp files
+        Storage::disk('test')->assertExists("path/to/file.{$extension}");
+        $this->assertEquals("path/to/file.{$extension}", $asset->path());
+        Event::assertDispatched(AssetUploaded::class, function ($event) use ($asset) {
+            return $event->asset = $asset;
+        });
+        Event::assertDispatched(AssetSaved::class);
+    }
+
+    /** @test */
+    public function it_can_process_a_custom_image_format()
+    {
+        Event::fake();
+
+        config(['statamic.assets.image_manipulation.presets.small' => [
+            'w' => '15',
+            'h' => '15',
+        ]]);
+
+        // Normally pdf files (for example) are not supported by gd or imagick. However, imagick does
+        // does actually support over 100 formats with extra configuration (eg. via ghostscript).
+        // Thus, we allow the user to configure additional extensions in their assets config.
+        config(['statamic.assets.image_manipulation.additional_extensions' => [
+            'pdf',
+        ]]);
+
+        $this->container->sourcePreset('small');
+
+        $asset = (new Asset)->container($this->container)->path('path/to/asset.pdf')->syncOriginal();
+
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
+        Storage::disk('test')->assertMissing('path/to/asset.pdf');
+
+        $file = UploadedFile::fake()->image('asset.pdf', 20, 30);
+
+        // Ensure a glide server is instantiated and `makeImage()` is called...
+        Facades\Glide::partialMock()
+            ->shouldReceive('server->makeImage')
+            ->andReturn($file->getFilename())
+            ->once();
+
+        // Since we're mocking the glide server, and since the uploader's `write()` method expects
+        // this location, we need to force it into that storage path for this test to pass...
+        File::move($file->getRealPath(), $tempUploadedFilePath = storage_path('statamic/glide/tmp').'/'.$file->getFilename());
+
+        // Perform the upload...
+        $return = $asset->upload($file);
+
+        // Now we'll delete that temporary UploadedFile, because we moved it into the app's storage above, and
+        // it's normally not supposed to be there. This is necessary to prevent state issues across tests...
+        File::delete($tempUploadedFilePath);
+
+        $this->assertEquals($asset, $return);
+        $this->assertDirectoryExists($glideDir = storage_path('statamic/glide/tmp'));
+        $this->assertEmpty(app('files')->allFiles($glideDir)); // no temp files
+        Storage::disk('test')->assertExists('path/to/asset.pdf');
+        $this->assertEquals('path/to/asset.pdf', $asset->path());
+        Event::assertDispatched(AssetUploaded::class, function ($event) use ($asset) {
+            return $event->asset = $asset;
+        });
+        Event::assertDispatched(AssetSaved::class);
+        $meta = $asset->meta();
+
+        // Normally we assert changes to the meta, but we cannot in this test because we can't guarantee
+        // the test suite has imagick with ghostscript installed (required for pdf files, for example).
+        // $this->assertEquals(10, $meta['width']);
+        // $this->assertEquals(15, $meta['height']);
     }
 
     /** @test */
@@ -1633,10 +2026,10 @@ class AssetTest extends TestCase
     public function it_lowercases_uploaded_filenames_by_default()
     {
         Event::fake();
-        $asset = $this->container->makeAsset('path/to/lowercase-THIS-asset.jpg');
+        $asset = $this->container->makeAsset('path/to/lowercase-THIS-asset.JPG');
         Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
 
-        $asset->upload(UploadedFile::fake()->image('lowercase-THIS-asset.jpg'));
+        $asset->upload(UploadedFile::fake()->image('lowercase-THIS-asset.JPG'));
 
         Storage::disk('test')->assertExists('path/to/lowercase-this-asset.jpg');
         $this->assertEquals('path/to/lowercase-this-asset.jpg', $asset->path());
@@ -1716,13 +2109,13 @@ class AssetTest extends TestCase
         config(['statamic.assets.lowercase' => false]);
 
         Event::fake();
-        $asset = $this->container->makeAsset('path/to/do-NOT-lowercase-THIS-asset.jpg');
+        $asset = $this->container->makeAsset('path/to/do-NOT-lowercase-THIS-asset.JPG');
         Facades\AssetContainer::shouldReceive('findByHandle')->with('test_container')->andReturn($this->container);
 
-        $asset->upload(UploadedFile::fake()->image('do-NOT-lowercase-THIS-asset.jpg'));
+        $asset->upload(UploadedFile::fake()->image('do-NOT-lowercase-THIS-asset.JPG'));
 
-        Storage::disk('test')->assertExists('path/to/do-NOT-lowercase-THIS-asset.jpg');
-        $this->assertEquals('path/to/do-NOT-lowercase-THIS-asset.jpg', $asset->path());
+        Storage::disk('test')->assertExists('path/to/do-NOT-lowercase-THIS-asset.JPG');
+        $this->assertEquals('path/to/do-NOT-lowercase-THIS-asset.JPG', $asset->path());
         Event::assertDispatched(AssetUploaded::class, function ($event) use ($asset) {
             return $event->asset = $asset;
         });
@@ -1910,6 +2303,73 @@ class AssetTest extends TestCase
         ], Arr::only($asset->selectedQueryRelations(['charlie'])->toArray(), ['alfa', 'bravo', 'charlie']));
     }
 
+    /**
+     * @test
+     */
+    public function it_has_a_dirty_state()
+    {
+        $container = Facades\AssetContainer::make('test')->disk('test');
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test')->andReturn($container);
+
+        $asset = (new Asset)->container($container)->path('test.jpg');
+
+        $asset->data([
+            'title' => 'English',
+            'food' => 'Burger',
+            'drink' => 'Water',
+        ])->save();
+
+        $this->assertFalse($asset->isDirty());
+        $this->assertFalse($asset->isDirty('title'));
+        $this->assertFalse($asset->isDirty('food'));
+        $this->assertFalse($asset->isDirty(['title']));
+        $this->assertFalse($asset->isDirty(['food']));
+        $this->assertFalse($asset->isDirty(['title', 'food']));
+        $this->assertTrue($asset->isClean());
+        $this->assertTrue($asset->isClean('title'));
+        $this->assertTrue($asset->isClean('food'));
+        $this->assertTrue($asset->isClean(['title']));
+        $this->assertTrue($asset->isClean(['food']));
+        $this->assertTrue($asset->isClean(['title', 'food']));
+
+        $asset->merge(['title' => 'French']);
+
+        $this->assertTrue($asset->isDirty());
+        $this->assertTrue($asset->isDirty('title'));
+        $this->assertFalse($asset->isDirty('food'));
+        $this->assertTrue($asset->isDirty(['title']));
+        $this->assertFalse($asset->isDirty(['food']));
+        $this->assertTrue($asset->isDirty(['title', 'food']));
+        $this->assertFalse($asset->isClean());
+        $this->assertFalse($asset->isClean('title'));
+        $this->assertTrue($asset->isClean('food'));
+        $this->assertFalse($asset->isClean(['title']));
+        $this->assertTrue($asset->isClean(['food']));
+        $this->assertFalse($asset->isClean(['title', 'food']));
+    }
+
+    /** @test */
+    public function it_syncs_original_at_the_right_time()
+    {
+        $eventsHandled = 0;
+
+        Event::listen(function (AssetSaved $event) use (&$eventsHandled) {
+            $eventsHandled++;
+            $this->assertTrue($event->asset->isDirty());
+        });
+
+        $container = Facades\AssetContainer::make('test')->disk('test');
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test')->andReturn($container);
+        $asset = $container->makeAsset('test.jpg');
+
+        $asset
+            ->set('foo', 'bar')
+            ->save();
+
+        $this->assertFalse($asset->isDirty());
+        $this->assertEquals(1, $eventsHandled);
+    }
+
     /** @test */
     public function it_augments_in_the_parser()
     {
@@ -1956,6 +2416,7 @@ class AssetTest extends TestCase
     /** @test */
     public function it_syncs_original_state_with_no_data_but_with_data_in_meta()
     {
+        Storage::disk('test')->put('path/to/test.txt', '');
         Storage::disk('test')->put('path/to/.meta/test.txt.yaml', "data:\n  foo: bar");
         $asset = (new Asset)->container($this->container)->path('path/to/test.txt');
 
@@ -1984,6 +2445,7 @@ class AssetTest extends TestCase
     /** @test */
     public function it_syncs_original_state_with_data()
     {
+        Storage::disk('test')->put('path/to/test.txt', '');
         $yaml = <<<'YAML'
 data:
   alfa: bravo
@@ -2025,6 +2487,7 @@ YAML;
     /** @test */
     public function it_resolves_pending_original_meta_values_when_hydrating()
     {
+        Storage::disk('test')->put('path/to/test.txt', '');
         $yaml = <<<'YAML'
 data:
   alfa: bravo
@@ -2061,11 +2524,111 @@ YAML;
         ], $asset->getRawOriginal());
     }
 
+    /**
+     * @test
+     *
+     * @dataProvider warmPresetProvider
+     */
+    public function it_gets_which_presets_to_warm($extension, $orientation, $cpEnabled, $expectedWarm)
+    {
+        config(['statamic.cp.enabled' => $cpEnabled]);
+
+        Storage::fake('test');
+
+        if ($orientation === 'landscape') {
+            $width = 20;
+            $height = 10;
+        } elseif ($orientation === 'portrait') {
+            $width = 10;
+            $height = 20;
+        } elseif ($orientation === 'square') {
+            $width = 10;
+            $height = 10;
+        }
+
+        $filename = 'test.'.$extension;
+        Storage::disk('test')->put($filename, '');
+
+        if ($extension === 'jpg') {
+            Storage::disk('test')->put('.meta/'.$filename.'.yaml', YAML::dump([
+                'height' => $height,
+                'width' => $width,
+            ]));
+        }
+
+        $container = Facades\AssetContainer::make('test')->disk('test');
+        $container = Mockery::mock($container)->makePartial();
+        $container->shouldReceive('warmPresets')->andReturn(['one', 'two']);
+
+        $asset = (new Asset)->container($container)->path($filename);
+
+        $this->assertEquals($expectedWarm, $asset->warmPresets());
+    }
+
+    public static function warmPresetProvider()
+    {
+        return [
+            'portrait' => ['jpg', 'portrait', true, ['one', 'two', 'cp_thumbnail_small_portrait']],
+            'landscape' => ['jpg', 'landscape', true, ['one', 'two', 'cp_thumbnail_small_landscape']],
+            'square' => ['jpg', 'square', true, ['one', 'two', 'cp_thumbnail_small_square']],
+            'portrait svg' => ['svg', 'portrait', true, []],
+            'landscape svg' => ['svg', 'landscape', true, []],
+            'square svg' => ['svg', 'square', true, []],
+            'non-image' => ['txt', null, true, []],
+            'cp disabled, portrait' => ['jpg', 'portrait', false, ['one', 'two']],
+            'cp disabled, landscape' => ['jpg', 'landscape', false, ['one', 'two']],
+            'cp disabled, square' => ['jpg', 'square', false, ['one', 'two']],
+            'cp disabled, portrait svg' => ['svg', 'portrait', false, []],
+            'cp disabled, landscape svg' => ['svg', 'landscape', false, []],
+            'cp disabled, square svg' => ['svg', 'square', false, []],
+            'cp disabled, non-image' => ['txt', null, false, []],
+        ];
+    }
+
     private function fakeEventWithMacros()
     {
         $fake = Event::fake();
         $mock = \Mockery::mock($fake)->makePartial();
         $mock->shouldReceive('forgetListener');
         Event::swap($mock);
+    }
+
+    /** @test */
+    public function it_fires_a_deleting_event()
+    {
+        Event::fake();
+
+        $container = Facades\AssetContainer::make('test')->disk('test');
+        Facades\AssetContainer::shouldReceive('findByHandle')->with('test')->andReturn($container);
+        Facades\AssetContainer::shouldReceive('find')->with('test')->andReturn($container);
+
+        Storage::disk('test')->put('foo/test.txt', '');
+        $asset = (new Asset)->container('test')->path('foo/test.txt');
+
+        $asset->delete();
+
+        Event::assertDispatched(AssetDeleting::class, function ($event) use ($asset) {
+            return $event->asset === $asset;
+        });
+    }
+
+    /** @test */
+    public function it_does_not_delete_when_a_deleting_event_returns_false()
+    {
+        Facades\Asset::spy();
+        Event::fake([AssetDeleted::class]);
+
+        Event::listen(AssetDeleting::class, function () {
+            return false;
+        });
+
+        Storage::disk('test')->put('foo/test.txt', '');
+        $asset = (new Asset)->container($this->container)->path('foo/test.txt');
+
+        $return = $asset->delete();
+
+        $this->assertFalse($return);
+        Facades\Asset::shouldNotHaveReceived('delete');
+        Event::assertNotDispatched(AssetDeleted::class);
     }
 }

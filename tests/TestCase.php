@@ -2,6 +2,8 @@
 
 namespace Tests;
 
+use Illuminate\Testing\Assert as IlluminateAssert;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Assert;
 
 abstract class TestCase extends \Orchestra\Testbench\TestCase
@@ -13,9 +15,9 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
 
     protected function setUp(): void
     {
-        require_once __DIR__.'/ConsoleKernel.php';
-
         parent::setUp();
+
+        $this->withoutVite();
 
         $uses = array_flip(class_uses_recursive(static::class));
 
@@ -29,7 +31,7 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
         }
 
         if ($this->shouldPreventNavBeingBuilt) {
-            \Statamic\Facades\CP\Nav::shouldReceive('build')->zeroOrMoreTimes()->andReturn([]);
+            \Statamic\Facades\CP\Nav::shouldReceive('build')->zeroOrMoreTimes()->andReturn(collect());
             $this->addToAssertionCount(-1); // Dont want to assert this
         }
 
@@ -72,10 +74,8 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
         ];
 
         foreach ($configs as $config) {
-            $app['config']->set("statamic.$config", require(__DIR__."/../config/{$config}.php"));
+            $app['config']->set("statamic.$config", require (__DIR__."/../config/{$config}.php"));
         }
-
-        $app['config']->set('statamic.antlers.version', 'runtime');
     }
 
     protected function getEnvironmentSetUp($app)
@@ -101,6 +101,7 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
         $app['config']->set('statamic.stache.stores.entries.directory', __DIR__.'/__fixtures__/content/collections');
         $app['config']->set('statamic.stache.stores.navigation.directory', __DIR__.'/__fixtures__/content/navigation');
         $app['config']->set('statamic.stache.stores.globals.directory', __DIR__.'/__fixtures__/content/globals');
+        $app['config']->set('statamic.stache.stores.global-variables.directory', __DIR__.'/__fixtures__/content/globals');
         $app['config']->set('statamic.stache.stores.asset-containers.directory', __DIR__.'/__fixtures__/content/assets');
         $app['config']->set('statamic.stache.stores.nav-trees.directory', __DIR__.'/__fixtures__/content/structures/navigation');
         $app['config']->set('statamic.stache.stores.collection-trees.directory', __DIR__.'/__fixtures__/content/structures/collections');
@@ -114,17 +115,12 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
             'path' => storage_path('framework/cache/outpost-data'),
         ]);
 
+        $app['config']->set('statamic.search.indexes.default.driver', 'null');
+
         $viewPaths = $app['config']->get('view.paths');
         $viewPaths[] = __DIR__.'/__fixtures__/views/';
 
         $app['config']->set('view.paths', $viewPaths);
-    }
-
-    public static function assertEquals($expected, $actual, string $message = '', float $delta = 0.0, int $maxDepth = 10, bool $canonicalize = false, bool $ignoreCase = false): void
-    {
-        $args = static::normalizeArgsForWindows(func_get_args());
-
-        parent::assertEquals(...$args);
     }
 
     protected function assertEveryItem($items, $callback)
@@ -170,12 +166,11 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
 
     public static function assertArraySubset($subset, $array, bool $checkForObjectIdentity = false, string $message = ''): void
     {
-        $class = version_compare(app()->version(), 7, '>=') ? \Illuminate\Testing\Assert::class : \Illuminate\Foundation\Testing\Assert::class;
-        $class::assertArraySubset($subset, $array, $checkForObjectIdentity, $message);
+        IlluminateAssert::assertArraySubset($subset, $array, $checkForObjectIdentity, $message);
     }
 
     // This method is unavailable on earlier versions of Laravel.
-    public function partialMock($abstract, \Closure $mock = null)
+    public function partialMock($abstract, ?\Closure $mock = null)
     {
         $mock = \Mockery::mock(...array_filter(func_get_args()))->makePartial();
         $this->app->instance($abstract, $mock);
@@ -183,40 +178,9 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
         return $mock;
     }
 
-    /**
-     * @deprecated
-     */
-    public static function assertFileNotExists(string $filename, string $message = ''): void
-    {
-        method_exists(static::class, 'assertFileDoesNotExist')
-            ? static::assertFileDoesNotExist($filename, $message)
-            : parent::assertFileNotExists($filename, $message);
-    }
-
-    /**
-     * @deprecated
-     */
-    public static function assertDirectoryNotExists(string $filename, string $message = ''): void
-    {
-        method_exists(static::class, 'assertDirectoryDoesNotExist')
-            ? static::assertDirectoryDoesNotExist($filename, $message)
-            : parent::assertDirectoryNotExists($filename, $message);
-    }
-
-    public static function assertMatchesRegularExpression(string $pattern, string $string, string $message = ''): void
-    {
-        method_exists(\PHPUnit\Framework\Assert::class, 'assertMatchesRegularExpression')
-            ? parent::assertMatchesRegularExpression($pattern, $string, $message)
-            : parent::assertRegExp($pattern, $string, $message);
-    }
-
     private function addGqlMacros()
     {
-        $testResponseClass = version_compare($this->app->version(), 7, '<')
-            ? \Illuminate\Foundation\Testing\TestResponse::class
-            : \Illuminate\Testing\TestResponse::class;
-
-        $testResponseClass::macro('assertGqlOk', function () {
+        TestResponse::macro('assertGqlOk', function () {
             $this->assertOk();
 
             $json = $this->json();
@@ -231,7 +195,7 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
             return $this;
         });
 
-        $testResponseClass::macro('assertGqlUnauthorized', function () {
+        TestResponse::macro('assertGqlUnauthorized', function () {
             $this->assertOk();
 
             $json = $this->json();
@@ -250,5 +214,18 @@ abstract class TestCase extends \Orchestra\Testbench\TestCase
 
             return $this;
         });
+    }
+
+    public function __call($name, $arguments)
+    {
+        if ($name == 'assertStringEqualsStringIgnoringLineEndings') {
+            return Assert::assertThat(
+                $arguments[1],
+                new StringEqualsStringIgnoringLineEndings($arguments[0]),
+                $arguments[2] ?? ''
+            );
+        }
+
+        throw new \BadMethodCallException("Method [$name] does not exist.");
     }
 }

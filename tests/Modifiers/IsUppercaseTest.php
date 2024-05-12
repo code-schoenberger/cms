@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class IsUppercaseTest extends TestCase
 {
-    public function strings(): array
+    public static function stringsProvider(): array
     {
         return [
             'string_all_uppercase' => [true, 'NOISES'],
@@ -20,7 +20,8 @@ class IsUppercaseTest extends TestCase
 
     /**
      * @test
-     * @dataProvider strings
+     *
+     * @dataProvider stringsProvider
      */
     public function it_returns_true_if_string_has_only_uppercase_chars($expected, $input): void
     {

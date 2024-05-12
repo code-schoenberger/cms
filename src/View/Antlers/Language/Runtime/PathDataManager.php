@@ -356,14 +356,18 @@ class PathDataManager
     public function setRuntimeValue(VariableReference $path, &$data, $value)
     {
         // Run through the getData routine to build up the dynamic path.
-        $this->getData($path, $data);
+        $result = $this->getDataWithExistence($path, $data);
         $lastPath = $this->lastPath();
+
+        if ($result[0] === false && mb_strlen($lastPath) > 0) {
+            $lastPath = $path->originalContent;
+        }
 
         if (Str::contains($lastPath, '{method:')) {
             throw new VariableAccessException('Cannot set method value with path: "'.$path->originalContent.'"');
         }
 
-        Arr::set($data, $this->lastPath(), $value);
+        Arr::set($data, $lastPath, $value);
     }
 
     /**
@@ -401,7 +405,7 @@ class PathDataManager
             Log::warning('Runtime Access Violation: '.$normalizedReference, [
                 'variable' => $normalizedReference,
                 'file' => GlobalRuntimeState::$currentExecutionFile,
-                'trace' =>  GlobalRuntimeState::$templateFileStack,
+                'trace' => GlobalRuntimeState::$templateFileStack,
             ]);
 
             if (GlobalRuntimeState::$throwErrorOnAccessViolation) {
@@ -472,6 +476,15 @@ class PathDataManager
         }
     }
 
+    private function collapseValues(bool $isFinal)
+    {
+        if (! $isFinal && $this->reducedVar instanceof Values) {
+            $this->lockData();
+            $this->reducedVar = self::reduce($this->reducedVar, true, $this->shouldDoValueIntercept);
+            $this->unlockData();
+        }
+    }
+
     private function collapseQueryBuilder($builder)
     {
         $this->reducedVar = $builder->get();
@@ -537,6 +550,7 @@ class PathDataManager
             if ($pathItem instanceof PathNode) {
                 if ($pathItem->isStringVar) {
                     $this->reducedVar = $pathItem->name;
+
                     continue;
                 }
 
@@ -560,6 +574,7 @@ class PathDataManager
                         }
 
                         $this->compact($pathItem->isFinal);
+
                         continue;
                     }
                 }
@@ -602,7 +617,6 @@ class PathDataManager
                         }
 
                         if (count($path->pathParts) > 1 && $this->isPair == false) {
-
                             // If we have more steps in the path to take, but we are
                             // not a tag pair, we need to reduce anyway so we
                             // can descend further into the nested values.
@@ -610,6 +624,8 @@ class PathDataManager
                             $this->reducedVar = self::reduce($this->reducedVar, true, $this->shouldDoValueIntercept);
                             $this->unlockData();
                         }
+
+                        $this->collapseValues($pathItem->isFinal);
 
                         continue;
                     } else {
@@ -626,7 +642,6 @@ class PathDataManager
                                 }
 
                                 if (count($path->pathParts) > 1 && $this->isPair == false) {
-
                                     // If we have more steps in the path to take, but we are
                                     // not a tag pair, we need to reduce anyway so we
                                     // can descend further into the nested values.
@@ -638,6 +653,7 @@ class PathDataManager
                                 }
 
                                 $this->didFind = true;
+
                                 continue;
                             }
                         }
@@ -654,6 +670,8 @@ class PathDataManager
                 }
 
                 $this->reduceVar($pathItem, $data);
+
+                $this->collapseValues($pathItem->isFinal);
 
                 if ($pathItem->isFinal && $this->reducedVar instanceof Builder && ! $wasBuilderGoingIntoLast) {
                     $this->encounteredBuilderOnFinalPart = true;
@@ -693,6 +711,7 @@ class PathDataManager
                     }
 
                     $this->doBreak = false;
+
                     continue;
                 } else {
                     $referencePath = null;
@@ -923,21 +942,25 @@ class PathDataManager
                 }
 
                 $reductionStack[] = $augmented;
+
                 continue;
             } elseif ($reductionValue instanceof Values) {
                 GlobalRuntimeState::$isEvaluatingData = true;
                 $reductionStack[] = $reductionValue->toArray();
                 GlobalRuntimeState::$isEvaluatingData = false;
+
                 continue;
             } elseif ($reductionValue instanceof \Statamic\Entries\Collection) {
                 GlobalRuntimeState::$isEvaluatingData = true;
                 $reductionStack[] = RuntimeValues::resolveWithRuntimeIsolation($reductionValue);
                 GlobalRuntimeState::$isEvaluatingData = false;
+
                 continue;
             } elseif ($reductionValue instanceof ArrayableString) {
                 GlobalRuntimeState::$isEvaluatingData = true;
                 $reductionStack[] = $reductionValue->toArray();
                 GlobalRuntimeState::$isEvaluatingData = false;
+
                 continue;
             } elseif ($reductionValue instanceof Augmentable) {
                 // Avoids resolving augmented data "too early".
@@ -958,16 +981,19 @@ class PathDataManager
                 GlobalRuntimeState::$isEvaluatingData = true;
                 $reductionStack[] = $reductionValue->all();
                 GlobalRuntimeState::$isEvaluatingData = false;
+
                 continue;
             } elseif ($reductionValue instanceof Arrayable) {
                 GlobalRuntimeState::$isEvaluatingData = true;
                 $reductionStack[] = $reductionValue->toArray();
                 GlobalRuntimeState::$isEvaluatingData = false;
+
                 continue;
             } elseif ($reductionValue instanceof Builder && $reduceBuildersAndAugmentables) {
                 GlobalRuntimeState::$isEvaluatingData = true;
                 $reductionStack[] = $reductionValue->get();
                 GlobalRuntimeState::$isEvaluatingData = false;
+
                 continue;
             }
 
@@ -1001,7 +1027,7 @@ class PathDataManager
             if (! $isPair) {
                 $returnValue = $value->antlersValue($parser, $data);
             } else {
-                $returnValue = self::reduce(($value->antlersValue($parser, $data)));
+                $returnValue = self::reduce($value->antlersValue($parser, $data));
             }
             $returnValue = self::guardRuntimeReturnValue($returnValue);
 

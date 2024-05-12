@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class FloorTest extends TestCase
 {
-    public function numbersPool(): array
+    public static function numbersPoolProvider(): array
     {
         return [
             [-10, -10],
@@ -24,7 +24,8 @@ class FloorTest extends TestCase
 
     /**
      * @test
-     * @dataProvider numbersPool
+     *
+     * @dataProvider numbersPoolProvider
      */
     public function it_rounds_a_number_down_to_next_whole_number($expected, $input): void
     {

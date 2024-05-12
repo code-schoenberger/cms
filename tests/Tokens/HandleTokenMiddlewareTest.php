@@ -23,6 +23,7 @@ class HandleTokenMiddlewareTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider validTokenProvider
      **/
     public function it_should_handle_valid_tokens($paramToken, $headerToken)
@@ -44,7 +45,7 @@ class HandleTokenMiddlewareTest extends TestCase
         $this->assertEquals('valid-token', $response->headers->get('X-Test-Middleware'));
     }
 
-    public function validTokenProvider()
+    public static function validTokenProvider()
     {
         return [
             'param' => ['valid-token', null],
@@ -55,6 +56,7 @@ class HandleTokenMiddlewareTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider invalidTokenProvider
      **/
     public function it_should_not_handle_invalid_tokens($paramToken, $headerToken)
@@ -70,7 +72,7 @@ class HandleTokenMiddlewareTest extends TestCase
         $this->assertEquals('ok', $return);
     }
 
-    public function invalidTokenProvider()
+    public static function invalidTokenProvider()
     {
         return [
             'param' => ['invalid-token', null],

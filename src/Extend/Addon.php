@@ -2,7 +2,7 @@
 
 namespace Statamic\Extend;
 
-use Composer\Package\Version\VersionParser;
+use Composer\Semver\VersionParser;
 use Facades\Statamic\Licensing\LicenseManager;
 use ReflectionClass;
 use Statamic\Facades\File;
@@ -168,7 +168,6 @@ final class Addon
     /**
      * Make an addon instance from package details.
      *
-     * @param  array  $package
      * @return self
      */
     public static function makeFromPackage(array $package)

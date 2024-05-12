@@ -10,7 +10,8 @@ class TextTest extends TestCase
 {
     /**
      * @test
-     * @dataProvider processValues
+     *
+     * @dataProvider processValuesProvider
      **/
     public function it_processes_values($mode, $values)
     {
@@ -26,7 +27,7 @@ class TextTest extends TestCase
         $this->assertSame($values[4], $field->process(null));
     }
 
-    public function processValues()
+    public static function processValuesProvider()
     {
         return [
             'text' => ['text', ['test', '3', '3test', '3.14', null]],

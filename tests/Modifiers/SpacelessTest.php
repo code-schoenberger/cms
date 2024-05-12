@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class SpacelessTest extends TestCase
 {
-    public function stringsWithSpaces(): array
+    public static function stringsWithSpacesProvider(): array
     {
         return [
             'spaces_and_linebreaks' => [
@@ -21,7 +21,8 @@ class SpacelessTest extends TestCase
 
     /**
      * @test
-     * @dataProvider stringsWithSpaces
+     *
+     * @dataProvider stringsWithSpacesProvider
      */
     public function it_removes_excess_whitespace_and_linebreaks_from_string($expected, $input): void
     {

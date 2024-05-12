@@ -3,8 +3,8 @@
 namespace Statamic\Http\Controllers\CP\Collections;
 
 use Illuminate\Http\Request;
-use LogicException;
 use Statamic\Contracts\Entries\Collection as CollectionContract;
+use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\CP\Column;
 use Statamic\Exceptions\SiteNotFoundException;
 use Statamic\Facades\Blueprint;
@@ -24,7 +24,9 @@ class CollectionsController extends CpController
         $this->authorize('index', CollectionContract::class, __('You are not authorized to view collections.'));
 
         $collections = Collection::all()->filter(function ($collection) {
-            return User::current()->can('view', $collection);
+            return User::current()->can('configure collections')
+                || User::current()->can('view', $collection)
+                && $collection->sites()->contains(Site::selected()->handle());
         })->map(function ($collection) {
             return [
                 'id' => $collection->handle(),
@@ -33,11 +35,13 @@ class CollectionsController extends CpController
                 'edit_url' => $collection->editUrl(),
                 'delete_url' => $collection->deleteUrl(),
                 'entries_url' => cp_route('collections.show', $collection->handle()),
+                'url' => $collection->absoluteUrl(Site::selected()->handle()),
                 'blueprints_url' => cp_route('collections.blueprints.index', $collection->handle()),
                 'scaffold_url' => cp_route('collections.scaffold', $collection->handle()),
                 'deleteable' => User::current()->can('delete', $collection),
                 'editable' => User::current()->can('edit', $collection),
                 'blueprint_editable' => User::current()->can('configure fields'),
+                'available_in_selected_site' => $collection->sites()->contains(Site::selected()->handle()),
             ];
         })->values();
 
@@ -54,6 +58,12 @@ class CollectionsController extends CpController
     {
         $this->authorize('view', $collection, __('You are not authorized to view this collection.'));
 
+        $site = $request->site ? Site::get($request->site) : Site::selected();
+
+        if ($response = $this->ensureCollectionIsAvailableOnSite($collection, $site)) {
+            return $response;
+        }
+
         $blueprints = $collection
             ->entryBlueprints()
             ->reject->hidden()
@@ -64,16 +74,15 @@ class CollectionsController extends CpController
                 ];
             })->values();
 
-        $site = $request->site ? Site::get($request->site) : Site::selected();
-
         $blueprint = $collection->entryBlueprint();
-
-        if (! $blueprint) {
-            throw new LogicException("The {$collection->handle()} collection does not have any visible blueprints. At least one must not be hidden.");
-        }
 
         $columns = $blueprint
             ->columns()
+            ->put('status', Column::make('status')
+                ->listable(true)
+                ->visible(true)
+                ->defaultVisibility(true)
+                ->sortable(false))
             ->setPreferred("collections.{$collection->handle()}.columns")
             ->rejectUnlisted()
             ->values();
@@ -87,18 +96,11 @@ class CollectionsController extends CpController
                 'collection' => $collection->handle(),
                 'blueprints' => $blueprints->pluck('handle')->all(),
             ]),
-            'sites' => $collection->sites()->map(function ($site_handle) {
-                $site = Site::get($site_handle);
-
-                if (! $site) {
-                    throw new SiteNotFoundException($site_handle);
-                }
-
-                return [
-                    'handle' => $site->handle(),
-                    'name' => $site->name(),
-                ];
-            })->values()->all(),
+            'sites' => $this->getAuthorizedSitesForCollection($collection),
+            'createUrls' => $collection->sites()
+                ->mapWithKeys(fn ($site) => [$site => cp_route('collections.entries.create', [$collection->handle(), $site])])
+                ->all(),
+            'canCreate' => User::current()->can('create', [EntryContract::class, $collection]) && $collection->hasVisibleEntryBlueprint(),
         ];
 
         if ($collection->queryEntries()->count() === 0) {
@@ -153,7 +155,6 @@ class CollectionsController extends CpController
             'default_publish_state' => $collection->defaultPublishState(),
             'template' => $collection->template(),
             'layout' => $collection->layout(),
-            'amp' => $collection->ampable(),
             'sites' => $collection->sites()->all(),
             'propagate' => $collection->propagate(),
             'routes' => $collection->routes()->unique()->count() === 1
@@ -202,7 +203,7 @@ class CollectionsController extends CpController
             ->futureDateBehavior('private');
 
         if (Site::hasMultiple()) {
-            $collection->sites([Site::default()->handle()]);
+            $collection->sites([Site::selected()->handle()]);
         }
 
         $collection->save();
@@ -232,9 +233,8 @@ class CollectionsController extends CpController
             ->layout($values['layout'])
             ->defaultPublishState($values['default_publish_state'])
             ->sortDirection($values['sort_direction'])
-            ->ampable($values['amp'])
             ->mount($values['mount'] ?? null)
-            ->revisions($values['revisions'] ?? false)
+            ->revisionsEnabled($values['revisions'] ?? false)
             ->taxonomies($values['taxonomies'] ?? [])
             ->futureDateBehavior(array_get($values, 'future_date_behavior'))
             ->pastDateBehavior(array_get($values, 'past_date_behavior'))
@@ -288,7 +288,16 @@ class CollectionsController extends CpController
                 'title' => __('Link'),
                 'fields' => [
                     ['handle' => 'title', 'field' => ['type' => 'text']],
-                    ['handle' => 'redirect', 'field' => ['type' => 'link', 'required' => true]],
+                    [
+                        'handle' => 'redirect',
+                        'field' => [
+                            'type' => 'group', 'required' => true, 'width' => '100',
+                            'fields' => [
+                                ['handle' => 'url', 'field' => ['type' => 'link', 'required' => true, 'width' => '100', 'display' => __('Location')]],
+                                ['handle' => 'status', 'field' => ['type' => 'radio', 'inline' => 'true', 'required' => true, 'options' => [301 => __('301 (Permanent)'), 302 => __('302 (Temporary)')], 'width' => '100', 'display' => __('HTTP Status'), 'default' => 302]],
+                            ],
+                        ],
+                    ],
                 ],
             ])
             ->save();
@@ -410,7 +419,7 @@ class CollectionsController extends CpController
                         'type' => 'html',
                         'html' => ''.
                             '<div class="text-xs">'.
-                            '   <span class="mr-2">'.$collection->entryBlueprints()->map->title()->join(', ').'</span>'.
+                            '   <span class="rtl:ml-4 ltr:mr-4">'.$collection->entryBlueprints()->map->title()->join(', ').'</span>'.
                             '   <a href="'.cp_route('collections.blueprints.index', $collection).'" class="text-blue">'.__('Edit').'</a>'.
                             '</div>',
                     ],
@@ -517,11 +526,6 @@ class CollectionsController extends CpController
                             return $collectionHandle === $collection->handle();
                         })->values()->all(),
                     ],
-                    'amp' => [
-                        'display' => __('Enable AMP'),
-                        'instructions' => __('statamic::messages.collections_amp_instructions'),
-                        'type' => 'toggle',
-                    ],
                     'preview_targets' => [
                         'display' => __('Preview Targets'),
                         'instructions' => __('statamic::messages.collections_preview_targets_instructions'),
@@ -530,13 +534,25 @@ class CollectionsController extends CpController
                             [
                                 'handle' => 'label',
                                 'field' => [
+                                    'display' => __('Label'),
                                     'type' => 'text',
                                 ],
                             ],
                             [
                                 'handle' => 'format',
                                 'field' => [
+                                    'display' => __('Format'),
                                     'type' => 'text',
+                                    'dir' => 'ltr',
+                                ],
+                            ],
+                            [
+                                'handle' => 'refresh',
+                                'field' => [
+                                    'display' => __('Refresh'),
+                                    'type' => 'toggle',
+                                    'instructions' => __('statamic::messages.collections_preview_target_refresh_instructions'),
+                                    'default' => true,
                                 ],
                             ],
                         ],
@@ -545,6 +561,30 @@ class CollectionsController extends CpController
             ],
         ]);
 
-        return Blueprint::makeFromSections($fields);
+        return Blueprint::makeFromTabs($fields);
+    }
+
+    protected function getAuthorizedSitesForCollection($collection)
+    {
+        return $collection
+            ->sites()
+            ->mapWithKeys(fn ($handle) => [$handle => Site::get($handle)])
+            ->each(fn ($site, $handle) => throw_unless($site, new SiteNotFoundException($handle)))
+            ->filter(fn ($site) => User::current()->can('view', $site))
+            ->map(function ($site) {
+                return [
+                    'handle' => $site->handle(),
+                    'name' => $site->name(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function ensureCollectionIsAvailableOnSite($collection, $site)
+    {
+        if (Site::hasMultiple() && ! $collection->sites()->contains($site->handle())) {
+            return redirect(cp_route('collections.index'))->with('error', __('Collection is not available on site ":handle".', ['handle' => $site->handle]));
+        }
     }
 }

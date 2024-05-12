@@ -1,18 +1,20 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', Statamic::crumb($taxonomy->title(), 'Taxonomies'))
 @section('wrapper_class', 'max-w-full')
 
 @section('content')
 
-    <header class="mb-3">
+    <header class="mb-6">
         @include('statamic::partials.breadcrumb', [
             'url' => cp_route('taxonomies.index'),
             'title' => __('Taxonomies')
         ])
         <div class="flex items-center">
-            <h1 class="flex-1">{{ $taxonomy->title() }}</h1>
+            <h1 class="flex-1">{{ __($taxonomy->title()) }}</h1>
 
-            <dropdown-list class="mr-1">
+            <dropdown-list class="rtl:ml-2 ltr:mr-2">
                 @can('edit', $taxonomy)
                     <dropdown-item :text="__('Edit Taxonomy')" redirect="{{ $taxonomy->editUrl() }}"></dropdown-item>
                 @endcan

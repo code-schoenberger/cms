@@ -82,6 +82,7 @@ export default {
                 localizedFields: _.clone(this.localizedFields),
                 site: this.site,
                 isRoot: this.isRoot,
+                reference: this.reference,
             };
 
             // If the store already exists, just reinitialize the state.
@@ -106,6 +107,8 @@ export default {
                     errors: {},
                     isRoot: initial.isRoot,
                     preloadedAssets: [],
+                    autosaveInterval: null,
+                    reference: initial.reference,
                 },
                 mutations: {
                     setFieldValue(state, payload) {
@@ -135,6 +138,12 @@ export default {
                     setRevealerField(state, dottedKey) {
                         if (state.revealerFields.indexOf(dottedKey) === -1) {
                             state.revealerFields.push(dottedKey);
+                        }
+                    },
+                    unsetRevealerField(state, dottedKey) {
+                        const index = state.revealerFields.indexOf(dottedKey);
+                        if (index !== -1) {
+                            state.revealerFields.splice(index, 1);
                         }
                     },
                     setMeta(state, meta) {
@@ -173,6 +182,15 @@ export default {
                     },
                     setPreloadedAssets(state, assets) {
                         state.preloadedAssets = assets;
+                    },
+                    setAutosaveInterval(state, interval) {
+                        if (state.autosaveInterval) {
+                            clearInterval(state.autosaveInterval);
+                        }
+                        state.autosaveInterval = interval;
+                    },
+                    clearAutosaveInterval(state) {
+                        clearInterval(state.autosaveInterval);
                     }
                 },
                 actions: {
@@ -201,6 +219,11 @@ export default {
         emitUpdatedEvent(values) {
             this.$emit('updated', values);
             this.dirty();
+        },
+
+        saving() {
+            // Let fieldtypes do any pre-save work, like triggering a "change" event for the focused field.
+            this.$events.$emit(`container.${this.name}.saving`);
         },
 
         saved() {

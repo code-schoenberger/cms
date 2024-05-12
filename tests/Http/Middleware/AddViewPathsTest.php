@@ -14,6 +14,7 @@ class AddViewPathsTest extends TestCase
 {
     /**
      * @test
+     *
      * @dataProvider viewPathProvider
      */
     public function adds_view_paths($isAmpEnabled, $requestUrl, $expectedPaths)
@@ -48,6 +49,7 @@ class AddViewPathsTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider namespacedViewPathProvider
      */
     public function adds_namespaced_view_paths($requestUrl, $expectedPaths)
@@ -93,7 +95,7 @@ class AddViewPathsTest extends TestCase
         app()->instance('request', $request);
     }
 
-    public function viewPathProvider()
+    public static function viewPathProvider()
     {
         return [
             'amp enabled, amp request' => [true, '/amp/fr/test', [
@@ -123,7 +125,7 @@ class AddViewPathsTest extends TestCase
         ];
     }
 
-    public function namespacedViewPathProvider()
+    public static function namespacedViewPathProvider()
     {
         return [
             'default site' => [

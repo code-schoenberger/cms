@@ -1,3 +1,5 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', __('Navigation'))
 
@@ -5,7 +7,7 @@
 
     @unless($navs->isEmpty())
 
-        <header class="flex items-center justify-between mb-3">
+        <header class="flex items-center justify-between mb-6">
             <h1>{{ __('Navigation') }}</h1>
 
             @can('create', 'Statamic\Contracts\Structures\Nav')

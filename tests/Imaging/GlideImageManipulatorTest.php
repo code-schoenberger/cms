@@ -31,6 +31,7 @@ class GlideImageManipulatorTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider paramProvider
      */
     public function adds_standard_api_params($param)
@@ -41,6 +42,7 @@ class GlideImageManipulatorTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider paramProvider
      */
     public function adds_standard_api_params_using_magic_method($param)
@@ -49,7 +51,7 @@ class GlideImageManipulatorTest extends TestCase
         $this->assertArrayHasKey($param, $this->man->getParams());
     }
 
-    public function paramProvider()
+    public static function paramProvider()
     {
         return [
             'or' => ['or'],
@@ -100,6 +102,7 @@ class GlideImageManipulatorTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider aliasProvider
      */
     public function testAddsParamsUsingAliases($alias, $value, $expected)
@@ -108,7 +111,7 @@ class GlideImageManipulatorTest extends TestCase
         $this->assertArraySubset($expected, $this->man->getParams());
     }
 
-    public function aliasProvider()
+    public static function aliasProvider()
     {
         return [
             'width' => ['width', 10, ['w' => 10]],

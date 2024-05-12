@@ -1,5 +1,7 @@
 import { marked } from 'marked';
 import { translate, translateChoice } from '../translations/translator';
+import uid from 'uniqid';
+import PreviewHtml from '../components/fieldtypes/replicator/PreviewHtml';
 
 export function cp_url(url) {
     url = Statamic.$config.get('cpUrl') + '/' + url;
@@ -54,15 +56,15 @@ export function clone(value) {
 
 export function tailwind_width_class(width) {
     const widths = {
-        25: '1/4',
-        33: '1/3',
-        50: '1/2',
-        66: '2/3',
-        75: '3/4',
-        100: 'full'
+        25: 'w-full @lg:w-1/4',
+        33: 'w-full @lg:w-1/3',
+        50: 'w-full @lg:w-1/2',
+        66: 'w-full @lg:w-2/3',
+        75: 'w-full @lg:w-3/4',
+        100: 'w-full'
     };
 
-    return `w-${widths[width] || 'full'}`;
+    return `${widths[width] || 'w-full'}`;
 }
 
 export function markdown(value) {
@@ -83,4 +85,48 @@ export function utf8btoa(stringToEncode) {
 
     // return base64 encoded string
     return btoa(utf8String);
+}
+
+export function utf8atob(stringToDecode) {
+    // Decode from base64 to UTF-8 byte representation
+    const utf8String = atob(stringToDecode);
+
+    // Convert the UTF-8 byte representation back to a regular string
+    return decodeURIComponent(utf8String.split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+}
+
+export function uniqid() {
+    return uid();
+}
+
+export function truncate(string, length, ending='...') {
+    if (string.length <= length) return string;
+
+    return string.substring(0, length - ending.length) + ending;
+}
+
+export function escapeHtml(string) {
+     return string.replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+export function replicatorPreviewHtml(html) {
+    return new PreviewHtml(html);
+}
+
+export function closestVm(el, name) {
+    let parent = el;
+    while (parent) {
+        if (parent.__vue__) break;
+        parent = parent.parentElement;
+    }
+    let vm = parent.__vue__;
+    while (vm !== vm.$root) {
+        if (!name || name === vm.$options.name) return vm;
+        vm = vm.$parent;
+    }
 }

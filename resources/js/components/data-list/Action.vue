@@ -11,9 +11,9 @@
             @confirm="confirm"
             @cancel="reset"
         >
-            <div v-if="confirmationText" v-text="confirmationText" :class="{ 'mb-2': warningText || action.fields.length }" />
+            <div v-if="confirmationText" v-text="confirmationText" :class="{ 'mb-4': warningText || action.fields.length }" />
 
-            <div v-if="warningText" v-text="warningText" class="text-red" :class="{ 'mb-2': action.fields.length }" />
+            <div v-if="warningText" v-text="warningText" class="text-red-500" :class="{ 'mb-4': action.fields.length }" />
 
             <publish-container
                 v-if="action.fields.length"
@@ -63,7 +63,7 @@ export default {
     data() {
         return {
             confirming: false,
-            fieldset: {sections:[{fields:this.action.fields}]},
+            fieldset: {tabs:[{fields:this.action.fields}]},
             values: this.action.values,
         }
     },
@@ -90,6 +90,10 @@ export default {
 
     created() {
         this.$events.$on('reset-action-modals', this.reset);
+    },
+
+    destroyed() {
+        this.$events.$off('reset-action-modals', this.reset);
     },
 
     methods: {

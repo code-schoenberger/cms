@@ -8,7 +8,8 @@ use Tests\TestCase;
 
 class MakeTagTest extends TestCase
 {
-    use Concerns\CleansUpGeneratedPaths;
+    use Concerns\CleansUpGeneratedPaths,
+        Concerns\FakesComposerInstalls;
 
     private $files;
 
@@ -17,6 +18,7 @@ class MakeTagTest extends TestCase
         parent::setUp();
 
         $this->files = app(Filesystem::class);
+        $this->fakeSuccessfulComposerRequire();
     }
 
     public function tearDown(): void
@@ -31,7 +33,7 @@ class MakeTagTest extends TestCase
     {
         $path = base_path('app/Tags/Donkey.php');
 
-        $this->assertFileNotExists($path);
+        $this->assertFileDoesNotExist($path);
 
         $this->artisan('statamic:make:tag', ['name' => 'Donkey']);
 
@@ -44,7 +46,7 @@ class MakeTagTest extends TestCase
     {
         $path = base_path('app/Tags/Donkey.php');
 
-        $this->assertFileNotExists($path);
+        $this->assertFileDoesNotExist($path);
 
         $this->artisan('statamic:make:tag', ['name' => 'Donkey']);
         $this->files->put($path, 'overwritten tag');
@@ -80,7 +82,7 @@ class MakeTagTest extends TestCase
 
         Composer::shouldReceive('installedPath')->andReturn($path);
 
-        $this->assertFileNotExists($tag = "$path/src/Tags/Yoda.php");
+        $this->assertFileDoesNotExist($tag = "$path/src/Tags/Yoda.php");
 
         $this->artisan('statamic:make:tag', ['name' => 'Yoda', 'addon' => 'yoda/bag-odah']);
 

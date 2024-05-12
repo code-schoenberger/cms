@@ -243,6 +243,7 @@ class AddonTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider isLatestVersionProvider
      **/
     public function it_checks_if_its_the_latest_version($version, $latest, $isLatest)
@@ -253,7 +254,7 @@ class AddonTest extends TestCase
         ])->isLatestVersion());
     }
 
-    public function isLatestVersionProvider()
+    public static function isLatestVersionProvider()
     {
         return [
             ['1.0.0', '1.0.0', true],

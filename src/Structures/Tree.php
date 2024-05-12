@@ -5,7 +5,7 @@ namespace Statamic\Structures;
 use Statamic\Contracts\Data\Localization;
 use Statamic\Contracts\Structures\Tree as Contract;
 use Statamic\Data\ExistsAsFile;
-use Statamic\Data\SyncsOriginalState;
+use Statamic\Data\HasDirtyState;
 use Statamic\Facades\Blink;
 use Statamic\Facades\Entry;
 use Statamic\Facades\Site;
@@ -14,7 +14,7 @@ use Statamic\Support\Traits\FluentlyGetsAndSets;
 
 abstract class Tree implements Contract, Localization
 {
-    use ExistsAsFile, FluentlyGetsAndSets, SyncsOriginalState;
+    use ExistsAsFile, FluentlyGetsAndSets, HasDirtyState;
 
     protected $handle;
     protected $locale;
@@ -22,7 +22,6 @@ abstract class Tree implements Contract, Localization
     protected $cachedFlattenedPages;
     protected $withEntries = false;
     protected $uriCacheEnabled = true;
-    protected $syncOriginalProperties = ['tree'];
 
     public function idKey()
     {
@@ -140,14 +139,6 @@ abstract class Tree implements Contract, Localization
         return $this->uriCacheEnabled;
     }
 
-    /**
-     * @deprecated  Use find() instead.
-     */
-    public function page($id): ?Page
-    {
-        return $this->find($id);
-    }
-
     public function find($id): ?Page
     {
         return $this->flattenedPages()
@@ -167,6 +158,9 @@ abstract class Tree implements Contract, Localization
     {
         $this->cachedFlattenedPages = null;
 
+        Blink::forget('collection-structure-flattened-pages-collection*');
+        Blink::forget('collection-structure-tree*');
+
         $this->repository()->save($this);
 
         $this->dispatchSavedEvent();
@@ -176,6 +170,8 @@ abstract class Tree implements Contract, Localization
 
     public function delete()
     {
+        Blink::forget('collection-structure-tree*');
+
         $this->repository()->delete($this);
 
         $this->dispatchDeletedEvent();
@@ -238,6 +234,13 @@ abstract class Tree implements Contract, Localization
 
     public function append($entry)
     {
+        // Prevent a null from being added to the tree. This is only a workaround
+        // since nulls shouldn't have been passed in here in the first place.
+        // TODO: fix actual cause.
+        if (is_null($entry)) {
+            return $this;
+        }
+
         $this->tree[] = ['entry' => $entry->id()];
 
         return $this;
@@ -245,8 +248,15 @@ abstract class Tree implements Contract, Localization
 
     public function appendTo($parent, $page)
     {
-        if ($parent && ! $this->page($parent)) {
+        if ($parent && ! $this->find($parent)) {
             throw new \Exception("Page [{$parent}] does not exist in this structure");
+        }
+
+        // Prevent a null from being added to the tree. This is only a workaround
+        // since nulls shouldn't have been passed in here in the first place.
+        // TODO: fix actual cause.
+        if (is_null($page)) {
+            return $this;
         }
 
         if (is_string($page)) {
@@ -287,7 +297,7 @@ abstract class Tree implements Contract, Localization
 
     public function move($entry, $target)
     {
-        $parent = optional($this->page($entry)->parent());
+        $parent = optional($this->find($entry)->parent());
 
         if ($parent->id() === $target || $parent->isRoot() && is_null($target)) {
             return $this;
@@ -367,15 +377,10 @@ abstract class Tree implements Contract, Localization
         return $this;
     }
 
-    public function __sleep()
+    public function getCurrentDirtyStateAttributes(): array
     {
-        $vars = Arr::except(get_object_vars($this), ['original']);
-
-        return array_keys($vars);
-    }
-
-    public function __wakeup()
-    {
-        $this->syncOriginal();
+        return [
+            'tree' => $this->tree,
+        ];
     }
 }

@@ -1,3 +1,5 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', __('User Groups'))
 
@@ -5,7 +7,7 @@
 
     @unless($groups->isEmpty())
 
-        <div class="flex mb-3">
+        <div class="flex mb-6">
             <h1 class="flex-1">
                 {{ __('User Groups') }}
             </h1>

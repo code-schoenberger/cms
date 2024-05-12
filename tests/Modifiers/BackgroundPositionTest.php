@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class BackgroundPositionTest extends TestCase
 {
-    public function backgroundPositions(): array
+    public static function backgroundPositionsProvider(): array
     {
         return [
             ['0% 0%', '0-0'],
@@ -24,7 +24,8 @@ class BackgroundPositionTest extends TestCase
 
     /**
      * @test
-     * @dataProvider backgroundPositions
+     *
+     * @dataProvider backgroundPositionsProvider
      */
     public function it_converts_a_focus_point_into_css_compatible_percent_value($expected, $input): void
     {

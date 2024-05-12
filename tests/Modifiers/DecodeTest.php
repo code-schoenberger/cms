@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class DecodeTest extends TestCase
 {
-    public function undecoded(): array
+    public static function undecodedProvider(): array
     {
         return [
             ['I\'ll "eat" the <b>bacon</b> now', "I'll \"eat\" the <b>bacon</b> now"],
@@ -16,7 +16,8 @@ class DecodeTest extends TestCase
 
     /**
      * @test
-     * @dataProvider undecoded
+     *
+     * @dataProvider undecodedProvider
      */
     public function it_converts_all_html_entities_to_applicable_chars($expected, $input): void
     {

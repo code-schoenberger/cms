@@ -21,45 +21,58 @@ class Grid extends Fieldtype
     protected function configFieldItems(): array
     {
         return [
-            'fields' => [
+            [
                 'display' => __('Fields'),
-                'instructions' => __('statamic::fieldtypes.grid.config.fields'),
-                'type' => 'fields',
-            ],
-            'mode' => [
-                'display' => __('Mode'),
-                'instructions' => __('statamic::fieldtypes.grid.config.mode'),
-                'type' => 'select',
-                'options' => [
-                    'table' => __('Table'),
-                    'stacked' => __('Stacked'),
+                'fields' => [
+                    'fields' => [
+                        'display' => __('Fields'),
+                        'instructions' => __('statamic::fieldtypes.grid.config.fields'),
+                        'type' => 'fields',
+                        'full_width_setting' => true,
+                    ],
                 ],
-                'default' => 'table',
             ],
-            'max_rows' => [
-                'display' => __('Maximum Rows'),
-                'instructions' => __('statamic::fieldtypes.grid.config.max_rows'),
-                'type' => 'integer',
-                'width' => '50',
-            ],
-            'min_rows' => [
-                'display' => __('Minimum Rows'),
-                'instructions' => __('statamic::fieldtypes.grid.config.min_rows'),
-                'type' => 'integer',
-                'width' => '50',
-            ],
-            'add_row' => [
-                'display' => __('Add Row Label'),
-                'instructions' => __('statamic::fieldtypes.grid.config.add_row'),
-                'type' => 'text',
-                'width' => '50',
-            ],
-            'reorderable' => [
-                'display' => __('Reorderable'),
-                'instructions' => __('statamic::fieldtypes.grid.config.reorderable'),
-                'type' => 'toggle',
-                'default' => true,
-                'width' => '50',
+            [
+                'display' => __('Appearance & Behavior'),
+                'fields' => [
+                    'mode' => [
+                        'display' => __('UI Mode'),
+                        'instructions' => __('statamic::fieldtypes.grid.config.mode'),
+                        'type' => 'select',
+                        'options' => [
+                            'table' => __('Table'),
+                            'stacked' => __('Stacked'),
+                        ],
+                        'default' => 'table',
+                    ],
+                    'max_rows' => [
+                        'display' => __('Maximum Rows'),
+                        'instructions' => __('statamic::fieldtypes.grid.config.max_rows'),
+                        'type' => 'integer',
+                    ],
+                    'min_rows' => [
+                        'display' => __('Minimum Rows'),
+                        'instructions' => __('statamic::fieldtypes.grid.config.min_rows'),
+                        'type' => 'integer',
+                    ],
+                    'add_row' => [
+                        'display' => __('Add Row Label'),
+                        'instructions' => __('statamic::fieldtypes.grid.config.add_row'),
+                        'type' => 'text',
+                    ],
+                    'reorderable' => [
+                        'display' => __('Reorderable'),
+                        'instructions' => __('statamic::fieldtypes.grid.config.reorderable'),
+                        'type' => 'toggle',
+                        'default' => true,
+                    ],
+                    'fullscreen' => [
+                        'display' => __('Allow Fullscreen Mode'),
+                        'instructions' => __('statamic::fieldtypes.grid.config.fullscreen'),
+                        'type' => 'toggle',
+                        'default' => true,
+                    ],
+                ],
             ],
         ];
     }
@@ -71,16 +84,16 @@ class Grid extends Fieldtype
 
     public function process($data)
     {
-        return collect($data)->map(function ($row) {
-            return $this->processRow($row);
+        return collect($data)->map(function ($row, $index) {
+            return $this->processRow($row, $index);
         })->all();
     }
 
-    private function processRow($row)
+    private function processRow($row, $index)
     {
-        $fields = $this->fields()->addValues($row)->process()->values()->all();
+        $fields = $this->fields($index)->addValues($row)->process()->values()->all();
 
-        $row = array_merge(['id' => Arr::pull($row, '_id')], $row, $fields);
+        $row = array_merge([RowId::handle() => Arr::pull($row, '_id')], $row, $fields);
 
         return Arr::removeNullValues($row);
     }
@@ -100,18 +113,18 @@ class Grid extends Fieldtype
 
     private function preProcessRow($row, $index)
     {
-        $fields = $this->fields()->addValues($row)->preProcess()->values()->all();
+        $fields = $this->fields($index)->addValues($row)->preProcess()->values()->all();
 
-        $id = Arr::pull($row, 'id') ?? RowId::generate();
+        $id = Arr::pull($row, RowId::handle()) ?? RowId::generate();
 
         return array_merge($row, $fields, [
             '_id' => $id,
         ]);
     }
 
-    public function fields()
+    public function fields($index = -1)
     {
-        return new Fields($this->config('fields'), $this->field()->parent(), $this->field());
+        return new Fields($this->config('fields'), $this->field()->parent(), $this->field(), $index);
     }
 
     public function rules(): array
@@ -141,7 +154,7 @@ class Grid extends Fieldtype
     protected function rowRules($data, $index)
     {
         $rules = $this
-            ->fields()
+            ->fields($index)
             ->addValues($data)
             ->validator()
             ->withContext([
@@ -161,9 +174,9 @@ class Grid extends Fieldtype
 
     public function extraValidationAttributes(): array
     {
-        $attributes = $this->fields()->validator()->attributes();
+        return collect($this->field->value())->map(function ($row, $index) {
+            $attributes = $this->fields($index)->validator()->attributes();
 
-        return collect($this->field->value())->map(function ($row, $index) use ($attributes) {
             return collect($attributes)->except('_id')->mapWithKeys(function ($attribute, $handle) use ($index) {
                 return [$this->rowRuleFieldPrefix($index).'.'.$handle => $attribute];
             });
@@ -177,8 +190,8 @@ class Grid extends Fieldtype
         return [
             'defaults' => $this->defaultRowData()->all(),
             'new' => $this->fields()->meta()->all(),
-            'existing' => collect($this->field->value())->mapWithKeys(function ($row) {
-                return [$row['_id'] => $this->fields()->addValues($row)->meta()];
+            'existing' => collect($this->field->value())->mapWithKeys(function ($row, $index) {
+                return [$row['_id'] => $this->fields($index)->addValues($row)->meta()];
             })->toArray(),
         ];
     }
@@ -204,8 +217,10 @@ class Grid extends Fieldtype
     {
         $method = $shallow ? 'shallowAugment' : 'augment';
 
-        return collect($value)->map(function ($row) use ($method) {
-            return new Values($this->fields()->addValues($row)->{$method}()->values()->all());
+        return collect($value)->map(function ($row, $index) use ($method) {
+            $values = $this->fields($index)->addValues($row)->{$method}()->values();
+
+            return new Values($values->merge([RowId::handle() => $row[RowId::handle()] ?? null])->all());
         })->all();
     }
 
@@ -232,8 +247,8 @@ class Grid extends Fieldtype
 
     public function preProcessValidatable($value)
     {
-        return collect($value)->map(function ($values) {
-            $processed = $this->fields()
+        return collect($value)->map(function ($values, $index) {
+            $processed = $this->fields($index)
                 ->addValues($values)
                 ->preProcessValidatables()
                 ->values()

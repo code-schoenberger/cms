@@ -22,34 +22,51 @@ class Replicator extends Fieldtype
     protected function configFieldItems(): array
     {
         return [
-            'collapse' => [
-                'display' => __('Collapse'),
-                'instructions' => __('statamic::fieldtypes.replicator.config.collapse'),
-                'type' => 'select',
-                'cast_booleans' => true,
-                'width' => 33,
-                'options' => [
-                    'false' => __('statamic::fieldtypes.replicator.config.collapse.disabled'),
-                    'true' => __('statamic::fieldtypes.replicator.config.collapse.enabled'),
-                    'accordion' => __('statamic::fieldtypes.replicator.config.collapse.accordion'),
+            [
+                'display' => __('Appearance & Behavior'),
+                'fields' => [
+                    'collapse' => [
+                        'display' => __('Collapse'),
+                        'instructions' => __('statamic::fieldtypes.replicator.config.collapse'),
+                        'type' => 'select',
+                        'cast_booleans' => true,
+                        'options' => [
+                            'false' => __('statamic::fieldtypes.replicator.config.collapse.disabled'),
+                            'true' => __('statamic::fieldtypes.replicator.config.collapse.enabled'),
+                            'accordion' => __('statamic::fieldtypes.replicator.config.collapse.accordion'),
+                        ],
+                        'default' => false,
+                    ],
+                    'previews' => [
+                        'display' => __('Field Previews'),
+                        'instructions' => __('statamic::fieldtypes.replicator.config.previews'),
+                        'type' => 'toggle',
+                        'default' => true,
+                    ],
+                    'max_sets' => [
+                        'display' => __('Max Sets'),
+                        'instructions' => __('statamic::fieldtypes.replicator.config.max_sets'),
+                        'type' => 'integer',
+                    ],
+                    'fullscreen' => [
+                        'display' => __('Allow Fullscreen Mode'),
+                        'instructions' => __('statamic::fieldtypes.replicator.config.fullscreen'),
+                        'type' => 'toggle',
+                        'default' => true,
+                    ],
                 ],
-                'default' => false,
             ],
-            'previews' => [
-                'display' => __('Field Previews'),
-                'instructions' => __('statamic::fieldtypes.replicator.config.previews'),
-                'type' => 'toggle',
-                'width' => 33,
-                'default' => true,
-            ],
-            'max_sets' => [
-                'display' => __('Max Sets'),
-                'instructions' => __('statamic::fieldtypes.replicator.config.max_sets'),
-                'type' => 'integer',
-                'width' => 33,
-            ],
-            'sets' => [
-                'type' => 'sets',
+            [
+                'display' => __('Manage Sets'),
+                'instructions' => __('statamic::fieldtypes.replicator.config.sets'),
+                'fields' => [
+                    'sets' => [
+                        'display' => __('Sets'),
+                        'type' => 'sets',
+                        'hide_display' => true,
+                        'full_width_setting' => true,
+                    ],
+                ],
             ],
         ];
     }
@@ -61,16 +78,16 @@ class Replicator extends Fieldtype
 
     public function process($data)
     {
-        return collect($data)->map(function ($row) {
-            return $this->processRow($row);
+        return collect($data)->map(function ($row, $i) {
+            return $this->processRow($row, $i);
         })->all();
     }
 
-    protected function processRow($row)
+    protected function processRow($row, $index)
     {
-        $fields = $this->fields($row['type'])->addValues($row)->process()->values()->all();
+        $fields = $this->fields($row['type'], $index)->addValues($row)->process()->values()->all();
 
-        $row = array_merge(['id' => Arr::pull($row, '_id')], $row, $fields);
+        $row = array_merge([RowId::handle() => Arr::pull($row, '_id')], $row, $fields);
 
         return Arr::removeNullValues($row);
     }
@@ -84,9 +101,9 @@ class Replicator extends Fieldtype
 
     protected function preProcessRow($row, $index)
     {
-        $fields = $this->fields($row['type'])->addValues($row)->preProcess()->values()->all();
+        $fields = $this->fields($row['type'], $index)->addValues($row)->preProcess()->values()->all();
 
-        $id = Arr::pull($row, 'id') ?? RowId::generate();
+        $id = Arr::pull($row, RowId::handle()) ?? RowId::generate();
 
         return array_merge($row, $fields, [
             '_id' => $id,
@@ -94,12 +111,13 @@ class Replicator extends Fieldtype
         ]);
     }
 
-    public function fields($set)
+    public function fields($set, $index = -1)
     {
         return new Fields(
-            $this->config("sets.$set.fields"),
+            Arr::get($this->flattenedSetsConfig(), "$set.fields"),
             $this->field()->parent(),
-            $this->field()
+            $this->field(),
+            $index
         );
     }
 
@@ -115,7 +133,7 @@ class Replicator extends Fieldtype
     protected function setRules($handle, $data, $index)
     {
         $rules = $this
-            ->fields($handle)
+            ->fields($handle, $index)
             ->addValues($data)
             ->validator()
             ->withContext([
@@ -144,7 +162,7 @@ class Replicator extends Fieldtype
 
     protected function setValidationAttributes($handle, $data, $index)
     {
-        $attributes = $this->fields($handle)->addValues($data)->validator()->attributes();
+        $attributes = $this->fields($handle, $index)->addValues($data)->validator()->attributes();
 
         return collect($attributes)->mapWithKeys(function ($attribute, $handle) use ($index) {
             return [$this->setRuleFieldPrefix($index).'.'.$handle => $attribute];
@@ -165,35 +183,33 @@ class Replicator extends Fieldtype
     {
         return collect($values)->reject(function ($set, $key) {
             return array_get($set, 'enabled', true) === false;
-        })->map(function ($set) use ($shallow) {
-            if (! $this->config("sets.{$set['type']}.fields")) {
+        })->map(function ($set, $index) use ($shallow) {
+            if (! Arr::get($this->flattenedSetsConfig(), "{$set['type']}.fields")) {
                 return $set;
             }
 
             $augmentMethod = $shallow ? 'shallowAugment' : 'augment';
 
-            $values = $this->fields($set['type'])->addValues($set)->{$augmentMethod}()->values();
+            $values = $this->fields($set['type'], $index)->addValues($set)->{$augmentMethod}()->values();
 
-            return new Values($values->merge(['type' => $set['type']])->all());
+            return new Values($values->merge([RowId::handle() => $set[RowId::handle()] ?? null, 'type' => $set['type']])->all());
         })->values()->all();
     }
 
     public function preload()
     {
-        $existing = collect($this->field->value())->mapWithKeys(function ($set) {
-            $config = $this->config("sets.{$set['type']}.fields", []);
-
-            return [$set['_id'] => (new Fields($config))->addValues($set)->meta()->put('_', '_')];
+        $existing = collect($this->field->value())->mapWithKeys(function ($set, $index) {
+            return [$set['_id'] => $this->fields($set['type'], $index)->addValues($set)->meta()->put('_', '_')];
         })->toArray();
 
-        $defaults = collect($this->config('sets'))->map(function ($set) {
-            return (new Fields($set['fields']))->all()->map(function ($field) {
+        $defaults = collect($this->flattenedSetsConfig())->map(function ($set, $handle) {
+            return $this->fields($handle)->all()->map(function ($field) {
                 return $field->fieldtype()->preProcess($field->defaultValue());
             })->all();
         })->all();
 
-        $new = collect($this->config('sets'))->map(function ($set, $handle) use ($defaults) {
-            return (new Fields($set['fields']))->addValues($defaults[$handle])->meta()->put('_', '_');
+        $new = collect($this->flattenedSetsConfig())->map(function ($set, $handle) use ($defaults) {
+            return $this->fields($handle)->addValues($defaults[$handle])->meta()->put('_', '_');
         })->toArray();
 
         $previews = collect($existing)->map(function ($fields) {
@@ -211,6 +227,26 @@ class Replicator extends Fieldtype
         ];
     }
 
+    public function flattenedSetsConfig()
+    {
+        $sets = collect($this->config('sets'));
+
+        // If the first set doesn't have a nested "set" key, it would be the legacy format.
+        // We'll put it in a "main" group so it's compatible with the new format.
+        // This also happens in the "sets" fieldtype.
+        if (! Arr::has($sets->first(), 'sets')) {
+            $sets = collect([
+                'main' => [
+                    'sets' => $sets->all(),
+                ],
+            ]);
+        }
+
+        return $sets->flatMap(function ($section) {
+            return $section['sets'];
+        });
+    }
+
     public function toGqlType()
     {
         return GraphQL::listOf(GraphQL::type($this->gqlSetsTypeName()));
@@ -218,7 +254,7 @@ class Replicator extends Fieldtype
 
     public function addGqlTypes()
     {
-        $types = collect($this->config('sets'))
+        $types = collect($this->flattenedSetsConfig())
             ->each(function ($set, $handle) {
                 $this->fields($handle)->all()->each(function ($field) {
                     $field->fieldtype()->addGqlTypes();
@@ -257,8 +293,8 @@ class Replicator extends Fieldtype
 
     public function preProcessValidatable($value)
     {
-        return collect($value)->map(function ($values) {
-            $processed = $this->fields($values['type'])
+        return collect($value)->map(function ($values, $index) {
+            $processed = $this->fields($values['type'], $index)
                 ->addValues($values)
                 ->preProcessValidatables()
                 ->values()

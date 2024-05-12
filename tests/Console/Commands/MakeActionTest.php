@@ -8,7 +8,8 @@ use Tests\TestCase;
 
 class MakeActionTest extends TestCase
 {
-    use Concerns\CleansUpGeneratedPaths;
+    use Concerns\CleansUpGeneratedPaths,
+        Concerns\FakesComposerInstalls;
 
     private $files;
 
@@ -17,6 +18,7 @@ class MakeActionTest extends TestCase
         parent::setUp();
 
         $this->files = app(Filesystem::class);
+        $this->fakeSuccessfulComposerRequire();
     }
 
     public function tearDown(): void
@@ -31,7 +33,7 @@ class MakeActionTest extends TestCase
     {
         $path = base_path('app/Actions/Delete.php');
 
-        $this->assertFileNotExists($path);
+        $this->assertFileDoesNotExist($path);
 
         $this->artisan('statamic:make:action', ['name' => 'Delete']);
 
@@ -78,7 +80,7 @@ class MakeActionTest extends TestCase
 
         Composer::shouldReceive('installedPath')->andReturn($path);
 
-        $this->assertFileNotExists($action = "$path/src/Actions/Yoda.php");
+        $this->assertFileDoesNotExist($action = "$path/src/Actions/Yoda.php");
 
         $this->artisan('statamic:make:action', ['name' => 'Yoda', 'addon' => 'yoda/bag-odah']);
 

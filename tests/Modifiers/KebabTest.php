@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class KebabTest extends TestCase
 {
-    public function strings(): array
+    public static function stringsProvider(): array
     {
         return [
             'with_whitespaces' => ['just-because-i-can', 'Just Because I Can'],
@@ -19,7 +19,8 @@ class KebabTest extends TestCase
 
     /**
      * @test
-     * @dataProvider strings
+     *
+     * @dataProvider stringsProvider
      */
     public function it_converts_the_value_to_kebab_case($expected, $input): void
     {

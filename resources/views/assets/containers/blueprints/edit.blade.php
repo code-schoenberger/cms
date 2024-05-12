@@ -1,3 +1,5 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', __('Edit Blueprint'))
 
@@ -11,7 +13,7 @@
     <blueprint-builder
         action="{{ cp_route('asset-containers.blueprint.update', $container->handle()) }}"
         :initial-blueprint="{{ json_encode($blueprintVueObject) }}"
-        :use-sections="false"
+        :use-tabs="false"
     ></blueprint-builder>
 
     @include('statamic::partials.docs-callout', [

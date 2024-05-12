@@ -3,6 +3,7 @@
 namespace Statamic\Stache\Stores;
 
 use Statamic\Facades\Collection;
+use Statamic\Facades\Entry;
 use Statamic\Facades\Path;
 use Statamic\Facades\Site;
 use Statamic\Facades\Stache;
@@ -43,7 +44,6 @@ class CollectionsStore extends BasicStore
             ->titleFormats(array_get($data, 'title_format'))
             ->mount(array_get($data, 'mount'))
             ->dated(array_get($data, 'date', false))
-            ->ampable(array_get($data, 'amp', false))
             ->sites($sites)
             ->template(array_get($data, 'template'))
             ->layout(array_get($data, 'layout'))
@@ -57,7 +57,8 @@ class CollectionsStore extends BasicStore
             ->sortDirection(array_get($data, 'sort_dir'))
             ->taxonomies(array_get($data, 'taxonomies'))
             ->propagate(array_get($data, 'propagate'))
-            ->previewTargets($this->normalizePreviewTargets(array_get($data, 'preview_targets', [])));
+            ->previewTargets($this->normalizePreviewTargets(array_get($data, 'preview_targets', [])))
+            ->autosaveInterval(array_get($data, 'autosave'));
 
         if ($dateBehavior = array_get($data, 'date_behavior')) {
             $collection
@@ -81,18 +82,41 @@ class CollectionsStore extends BasicStore
 
     public function updateEntryUris($collection, $ids = null)
     {
-        Stache::store('entries')
+        $index = Stache::store('entries')
             ->store($collection->handle())
-            ->index('uri')
-            ->update();
+            ->index('uri');
+
+        $this->updateEntriesWithinIndex($index, $ids);
     }
 
     public function updateEntryOrder($collection, $ids = null)
     {
-        Stache::store('entries')
+        $index = Stache::store('entries')
             ->store($collection->handle())
-            ->index('order')
-            ->update();
+            ->index('order');
+
+        $this->updateEntriesWithinIndex($index, $ids);
+    }
+
+    public function updateEntryParent($collection, $ids = null)
+    {
+        $index = Stache::store('entries')
+            ->store($collection->handle())
+            ->index('parent');
+
+        $this->updateEntriesWithinIndex($index, $ids);
+    }
+
+    private function updateEntriesWithinIndex($index, $ids)
+    {
+        if (empty($ids)) {
+            return $index->update();
+        }
+
+        collect($ids)
+            ->map(fn ($id) => Entry::find($id))
+            ->filter()
+            ->each(fn ($entry) => $index->updateItem($entry));
     }
 
     public function handleFileChanges()
@@ -118,6 +142,7 @@ class CollectionsStore extends BasicStore
             return [
                 'format' => $target['url'],
                 'label' => $target['label'],
+                'refresh' => $target['refresh'] ?? true,
             ];
         })->all();
     }

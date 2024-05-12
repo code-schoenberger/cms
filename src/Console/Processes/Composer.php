@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Cache;
 use Statamic\Console\Composer\Lock;
 use Statamic\Jobs\RunComposer;
 use Statamic\Support\Str;
+use Statamic\View\Antlers\Language\Utilities\StringUtilities;
 
 class Composer extends Process
 {
@@ -43,7 +44,6 @@ class Composer extends Process
     /**
      * Check if specific package is installed.
      *
-     * @param  string  $package
      * @return bool
      */
     public function isInstalled(string $package)
@@ -77,7 +77,6 @@ class Composer extends Process
     /**
      * Get installed version of a specific package.
      *
-     * @param  string  $package
      * @return string
      */
     public function installedVersion(string $package)
@@ -96,7 +95,6 @@ class Composer extends Process
     /**
      * Get installed path of a specific package.
      *
-     * @param  string  $package
      * @return string
      */
     public function installedPath(string $package)
@@ -110,11 +108,9 @@ class Composer extends Process
     /**
      * Require a package.
      *
-     * @param  string  $package
-     * @param  string|null  $version
      * @param  mixed  $extraParams
      */
-    public function require(string $package, string $version = null, ...$extraParams)
+    public function require(string $package, ?string $version = null, ...$extraParams)
     {
         if ($version) {
             $parts[] = $version;
@@ -129,11 +125,8 @@ class Composer extends Process
 
     /**
      * Require a dev package.
-     *
-     * @param  string  $package
-     * @param  string|null  $version
      */
-    public function requireDev(string $package, string $version = null, ...$extraParams)
+    public function requireDev(string $package, ?string $version = null, ...$extraParams)
     {
         $this->require($package, $version, '--dev', ...$extraParams);
     }
@@ -141,7 +134,6 @@ class Composer extends Process
     /**
      * Require multiple packages at once.
      *
-     * @param  array  $packages
      * @param  mixed  $extraParams
      */
     public function requireMultiple(array $packages, ...$extraParams)
@@ -156,7 +148,6 @@ class Composer extends Process
     /**
      * Require multiple dev packages at once.
      *
-     * @param  array  $packages
      * @param  mixed  $extraParams
      */
     public function requireMultipleDev(array $packages, ...$extraParams)
@@ -167,7 +158,6 @@ class Composer extends Process
     /**
      * Remove a package.
      *
-     * @param  string  $package
      * @param  mixed  $extraParams
      */
     public function remove(string $package, ...$extraParams)
@@ -178,7 +168,6 @@ class Composer extends Process
     /**
      * Remove a dev package.
      *
-     * @param  string  $package
      * @param  mixed  $extraParams
      */
     public function removeDev(string $package, ...$extraParams)
@@ -189,7 +178,6 @@ class Composer extends Process
     /**
      * Remove multiple packages at once.
      *
-     * @param  array  $packages
      * @param  mixed  $extraParams
      */
     public function removeMultiple(array $packages, ...$extraParams)
@@ -202,7 +190,6 @@ class Composer extends Process
     /**
      * Remove multiple dev packages at once.
      *
-     * @param  array  $packages
      * @param  mixed  $extraParams
      */
     public function removeMultipleDev(array $packages, ...$extraParams)
@@ -212,8 +199,6 @@ class Composer extends Process
 
     /**
      * Update a package.
-     *
-     * @param  string  $package
      */
     public function update(string $package)
     {
@@ -223,7 +208,6 @@ class Composer extends Process
     /**
      * Get cached output for package process.
      *
-     * @param  string  $package
      * @return mixed
      */
     public function cachedOutput(string $package)
@@ -234,7 +218,6 @@ class Composer extends Process
     /**
      * Get cached output for last completed package process.
      *
-     * @param  string  $package
      * @return mixed
      */
     public function lastCompletedCachedOutput(string $package)
@@ -320,15 +303,58 @@ class Composer extends Process
         return array_merge([
             $this->phpBinary(),
             "-d memory_limit={$this->memoryLimit}",
-            'vendor/bin/composer',
+            $this->composerBinary(),
             $this->colorized ? '--ansi' : '--no-ansi',
         ], $parts);
     }
 
     /**
+     * Absolute path to the Composer binary.
+     */
+    private function composerBinary(): string
+    {
+        $isWindows = DIRECTORY_SEPARATOR === '\\';
+
+        $output = $this->run($isWindows ? 'where composer' : 'which composer');
+
+        if ($isWindows) {
+            return $this->locateComposerPharOnWindows($output);
+        }
+
+        return $output;
+    }
+
+    private function locateComposerPharOnWindows($output): string
+    {
+        $output = StringUtilities::normalizeLineEndings($output);
+
+        if (! Str::contains($output, "\n")) {
+            $candidates = [trim($output)];
+        } else {
+            $candidates = explode("\n", $output);
+        }
+
+        foreach ($candidates as $candidate) {
+            // Do we have a bat file? The phar is likely beside it.
+            if (Str::endsWith($candidate, '.bat')) {
+                // Remove that 🦇 extension.
+                $candidate = mb_substr($candidate, 0, mb_strlen($candidate) - 4);
+            }
+
+            $pharPath = $candidate.'.phar';
+
+            if (file_exists($pharPath)) {
+                // Use "composer.phar" if we have it.
+                return $pharPath;
+            }
+        }
+
+        return $output;
+    }
+
+    /**
      * Sometimes composer returns versions with a 'v', sometimes it doesn't.
      *
-     * @param  string  $version
      * @return string
      */
     private function normalizeVersion(string $version)
@@ -350,7 +376,6 @@ class Composer extends Process
     /**
      * Normalize packages array to require args, with version handling if `package => version` array structure is passed.
      *
-     * @param  array  $packages
      * @return array
      */
     private function normalizePackagesArrayToRequireArgs(array $packages)

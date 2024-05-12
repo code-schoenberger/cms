@@ -1,69 +1,57 @@
 <template>
 
-    <div class="form-group publish-field select-fieldtype field-w-full">
-        <label class="publish-field-label">{{ __('Conditions') }}</label>
-        <div class="help-block -mt-1"><p>{{ __('messages.field_conditions_instructions') }}</p></div>
+    <div class="w-full">
 
-        <div class="flex items-center mb-3">
-            <select-input
-                v-model="when"
-                :options="whenOptions"
-                :placeholder="false" />
+        <div class="form-group publish-field select-fieldtype field-w-full">
+            <label class="publish-field-label">{{ __('Conditions') }}</label>
+            <div class="help-block -mt-2"><p>{{ __('messages.field_conditions_instructions') }}</p></div>
 
-            <select-input
-                v-if="hasConditions"
-                v-model="type"
-                :options="typeOptions"
-                :placeholder="false"
-                class="ml-2" />
+            <div class="flex items-center mb-6">
+                <select-input
+                    v-model="when"
+                    :options="whenOptions"
+                    :placeholder="false" />
 
-            <text-input
-                v-if="hasConditions && isCustom"
-                v-model="customMethod"
-                class="ml-2 flex-1" />
+                <select-input
+                    v-if="hasConditions"
+                    v-model="type"
+                    :options="typeOptions"
+                    :placeholder="false"
+                    class="rtl:mr-4 ltr:ml-4" />
+
+                <text-input
+                    v-if="hasConditions && isCustom"
+                    v-model="customMethod"
+                    class="rtl:mr-4 ltr:ml-4 flex-1" />
+            </div>
+
+            <condition
+                v-if="hasConditions && isStandard"
+                v-for="(condition, index) in conditions"
+                :index="index"
+                :config="config"
+                :condition="condition"
+                :key="condition._id"
+                :suggestable-fields="suggestableFields"
+                @updated="updated(index, $event)"
+                @removed="remove(index)"
+            />
+
+            <div class="border-t pt-6" v-if="hasConditions && isStandard">
+                <button
+                    v-text="__('Add Condition')"
+                    @click="add"
+                    class="btn-default" />
+            </div>
+
         </div>
 
-        <div
-            v-if="hasConditions && isStandard"
-            v-for="(condition, index) in conditions"
-            :key="condition._id"
-            class="flex items-center py-2 border-t"
-        >
-            <v-select
-                ref="fieldSelect"
-                v-model="conditions[index].field"
-                class="min-w-md"
-                :options="fieldOptions"
-                :placeholder="__('Field')"
-                :taggable="true"
-                :push-tags="true"
-                :reduce="field => field.value"
-                :create-option="field => ({value: field, label: field })"
-                @search:blur="fieldSelectBlur(index)"
-            >
-                <template #no-options><div class="hidden" /></template>
-            </v-select>
-
-            <select-input
-                v-model="conditions[index].operator"
-                :options="operatorOptions"
-                :placeholder="false"
-                class="ml-2" />
-
-            <text-input
-                v-model="conditions[index].value"
-                class="ml-2" />
-
-            <button @click="remove(index)" class="btn-close ml-1 group">
-                <svg-icon name="trash" class="w-4 h-4 group-hover:text-red" />
-            </button>
-        </div>
-
-        <div class="border-t pt-3" v-if="hasConditions && isStandard">
-            <button
-                v-text="__('Add Condition')"
-                @click="add"
-                class="btn-primary" />
+        <div class="form-group publish-field select-fieldtype field-w-full">
+            <label class="publish-field-label">{{ __('Always Save') }}</label>
+            <div class="help-block -mt-2">
+                <p>{{ __('messages.field_conditions_always_save_instructions') }}</p>
+            </div>
+            <toggle-input v-model="alwaysSave" />
         </div>
 
     </div>
@@ -76,10 +64,14 @@ import uniqid from 'uniqid';
 import HasInputOptions from '../fieldtypes/HasInputOptions.js';
 import Converter from '../field-conditions/Converter.js';
 import { KEYS, OPERATORS } from '../field-conditions/Constants.js';
+import Condition from './Condition.vue';
+import { __ } from '../../bootstrap/globals';
 
 export default {
 
     mixins: [HasInputOptions],
+
+    components: { Condition },
 
     props: {
         config: {
@@ -96,10 +88,12 @@ export default {
             type: 'all',
             customMethod: null,
             conditions: [],
+            alwaysSave: false,
         }
     },
 
     computed: {
+
         whenOptions() {
             return this.normalizeInputOptions({
                 always: __('Always show'),
@@ -114,16 +108,6 @@ export default {
                 any: __('Any of the following conditions pass'),
                 custom: __('Custom method passes')
             });
-        },
-
-        fieldOptions() {
-            return this.normalizeInputOptions(
-                _.reject(this.suggestableFields, field => field === this.config.handle)
-            );
-        },
-
-        operatorOptions() {
-            return this.normalizeInputOptions(OPERATORS);
         },
 
         hasConditions() {
@@ -151,23 +135,32 @@ export default {
 
             return conditions;
         }
+
     },
 
     watch: {
+
         saveableConditions: {
             deep: true,
             handler(conditions) {
                 this.$emit('updated', conditions);
             }
-        }
+        },
+
+        alwaysSave(alwaysSave) {
+            this.$emit('updated-always-save', alwaysSave);
+        },
+
     },
 
     created() {
         this.add();
-        this.getInitial();
+        this.getInitialConditions();
+        this.getInitialAlwaysSaveState();
     },
 
     methods: {
+
         add() {
             this.conditions.push({
                 _id: uniqid(),
@@ -181,7 +174,11 @@ export default {
             this.conditions.splice(index, 1);
         },
 
-        getInitial() {
+        updated(index, condition) {
+            this.conditions.splice(index, 1, condition);
+        },
+
+        getInitialConditions() {
             let key = _.chain(KEYS)
                 .filter(key => this.config[key])
                 .first()
@@ -208,6 +205,10 @@ export default {
             }
 
             this.conditions = this.prepareEditableConditions(conditions);
+        },
+
+        getInitialAlwaysSaveState() {
+            this.alwaysSave = data_get(this.config, 'always_save', false);
         },
 
         prepareEditableConditions(conditions) {
@@ -239,10 +240,6 @@ export default {
             return operator;
         },
 
-        fieldSelectBlur(index) {
-            const value = this.$refs.fieldSelect[index].$refs.search.value;
-            if (value) this.conditions[index].field = value;
-        },
     }
 }
 </script>

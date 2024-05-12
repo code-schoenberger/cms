@@ -184,6 +184,7 @@ EOT;
 
     /**
      * @test
+     *
      * @dataProvider saveProvider
      */
     public function it_saves_to_disk($handle, $expectedPath)
@@ -218,7 +219,7 @@ EOT;
         $this->repo->save($fieldset);
     }
 
-    public function saveProvider()
+    public static function saveProvider()
     {
         return [
             'standard' => ['test', '/path/to/resources/fieldsets/test.yaml'],

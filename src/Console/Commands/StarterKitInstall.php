@@ -41,11 +41,9 @@ class StarterKitInstall extends Command
      */
     public function handle()
     {
-        if (version_compare(app()->version(), '7', '<')) {
-            return $this->error('Laravel 7+ is required to install starter kits!');
-        }
+        [$package, $branch] = $this->getPackageAndBranch();
 
-        if ($this->validationFails($package = $this->getPackage(), new ComposerPackage)) {
+        if ($this->validationFails($package, new ComposerPackage)) {
             return;
         }
 
@@ -60,6 +58,7 @@ class StarterKitInstall extends Command
         }
 
         $installer = StarterKitInstaller::package($package, $this, $licenseManager)
+            ->branch($branch)
             ->fromLocalRepo($this->option('local'))
             ->withConfig($this->option('with-config'))
             ->withoutDependencies($this->option('without-dependencies'))
@@ -89,13 +88,21 @@ class StarterKitInstall extends Command
     }
 
     /**
-     * Get composer package.
+     * Get composer package (and optional branch).
      *
      * @return string
      */
-    protected function getPackage()
+    protected function getPackageAndBranch()
     {
-        return $this->argument('package') ?: $this->ask('Package');
+        $package = $this->argument('package') ?: $this->ask('Package');
+
+        $parts = explode(':', $package);
+
+        if (count($parts) === 1) {
+            $parts[] = null;
+        }
+
+        return $parts;
     }
 
     /**

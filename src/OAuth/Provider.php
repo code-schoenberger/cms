@@ -3,7 +3,9 @@
 namespace Statamic\OAuth;
 
 use Closure;
+use Illuminate\Support\Arr;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
+use Laravel\Socialite\Facades\Socialite;
 use Statamic\Contracts\Auth\User as StatamicUser;
 use Statamic\Facades\File;
 use Statamic\Facades\User;
@@ -11,14 +13,27 @@ use Statamic\Support\Str;
 
 class Provider
 {
-    protected $name;
+    /** @deprecated */
     protected $label;
+
     protected $userCallback;
     protected $userDataCallback;
 
-    public function __construct(string $name)
+    public function __construct(
+        protected string $name,
+        protected array $config = []
+    ) {
+    }
+
+    public function getSocialiteUser()
     {
-        $this->name = $name;
+        $driver = Socialite::driver($this->name);
+
+        if (Arr::get($this->config, 'stateless', false)) {
+            $driver->stateless();
+        }
+
+        return $driver->user();
     }
 
     /**
@@ -34,11 +49,10 @@ class Provider
 
     public function findOrCreateUser($socialite): StatamicUser
     {
-        if ($user = User::findByOAuthId($this->name, $socialite->getId())) {
-            return $user;
-        }
-
-        if ($user = User::findByEmail($socialite->getEmail())) {
+        if (
+            ($user = User::findByOAuthId($this->name, $socialite->getId())) ||
+            ($user = User::findByEmail($socialite->getEmail()))
+        ) {
             return $this->mergeUser($user, $socialite);
         }
 
@@ -49,7 +63,6 @@ class Provider
      * Create a Statamic user from a Socialite user.
      *
      * @param  SocialiteUser  $socialite
-     * @return StatamicUser
      */
     public function createUser($socialite): StatamicUser
     {
@@ -75,7 +88,7 @@ class Provider
 
     public function mergeUser($user, $socialite): StatamicUser
     {
-        collect($this->userData($socialite))->each(fn ($value, $key) => $user->set($key, $value));
+        collect($this->userData($socialite, $user))->each(fn ($value, $key) => $user->set($key, $value));
 
         $user->save();
 
@@ -84,10 +97,10 @@ class Provider
         return $user;
     }
 
-    public function userData($socialite)
+    public function userData($socialite, $existingUser = null)
     {
         if ($this->userDataCallback) {
-            return call_user_func($this->userDataCallback, $socialite);
+            return call_user_func($this->userDataCallback, $socialite, $existingUser);
         }
 
         return ['name' => $socialite->getName()];
@@ -96,11 +109,15 @@ class Provider
     public function withUserData(Closure $callback)
     {
         $this->userDataCallback = $callback;
+
+        return $this;
     }
 
     public function withUser(Closure $callback)
     {
         $this->userCallback = $callback;
+
+        return $this;
     }
 
     public function loginUrl()
@@ -111,12 +128,17 @@ class Provider
     public function label($label = null)
     {
         if (func_num_args() === 0) {
-            return $this->label ?? Str::title($this->name);
+            return $this->label ?? $this->config['label'] ?? Str::title($this->name);
         }
 
         $this->label = $label;
 
         return $this;
+    }
+
+    public function config()
+    {
+        return $this->config;
     }
 
     protected function getIds()

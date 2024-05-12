@@ -11,8 +11,11 @@ use Statamic\Data\ContainsCascadingData;
 use Statamic\Data\ExistsAsFile;
 use Statamic\Data\HasAugmentedData;
 use Statamic\Events\CollectionCreated;
+use Statamic\Events\CollectionCreating;
 use Statamic\Events\CollectionDeleted;
+use Statamic\Events\CollectionDeleting;
 use Statamic\Events\CollectionSaved;
+use Statamic\Events\CollectionSaving;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Facades;
 use Statamic\Facades\Blink;
@@ -29,9 +32,9 @@ use Statamic\Support\Arr;
 use Statamic\Support\Str;
 use Statamic\Support\Traits\FluentlyGetsAndSets;
 
-class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayable
+class Collection implements Arrayable, ArrayAccess, AugmentableContract, Contract
 {
-    use FluentlyGetsAndSets, ExistsAsFile, HasAugmentedData, ContainsCascadingData;
+    use ContainsCascadingData, ExistsAsFile, FluentlyGetsAndSets, HasAugmentedData;
 
     protected $handle;
     protected $routes = [];
@@ -46,7 +49,6 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
     protected $dated = false;
     protected $sortField;
     protected $sortDirection;
-    protected $ampable = false;
     protected $revisions = false;
     protected $positions;
     protected $defaultPublishState = true;
@@ -59,6 +61,8 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
     protected $requiresSlugs = true;
     protected $titleFormats = [];
     protected $previewTargets = [];
+    protected $autosave;
+    protected $withEvents = true;
 
     public function __construct()
     {
@@ -158,6 +162,11 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
             ->args(func_get_args());
     }
 
+    public function customSortField()
+    {
+        return $this->sortField;
+    }
+
     public function sortDirection($dir = null)
     {
         return $this
@@ -185,22 +194,17 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
             ->args(func_get_args());
     }
 
+    public function customSortDirection()
+    {
+        return $this->sortDirection;
+    }
+
     public function title($title = null)
     {
         return $this
             ->fluentlyGetOrSet('title')
             ->getter(function ($title) {
                 return $title ?? ucfirst($this->handle);
-            })
-            ->args(func_get_args());
-    }
-
-    public function ampable($ampable = null)
-    {
-        return $this
-            ->fluentlyGetOrSet('ampable')
-            ->getter(function ($ampable) {
-                return config('statamic.amp.enabled') && $ampable;
             })
             ->args(func_get_args());
     }
@@ -265,6 +269,11 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
         return Facades\Entry::query()->where('collection', $this->handle());
     }
 
+    public function hasVisibleEntryBlueprint()
+    {
+        return $this->entryBlueprints()->reject->hidden()->isNotEmpty();
+    }
+
     public function entryBlueprints()
     {
         $blink = 'collection-entry-blueprints-'.$this->handle();
@@ -295,7 +304,14 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
 
         $blueprint->setParent($entry ?? $this);
 
-        $this->dispatchEntryBlueprintFoundEvent($blueprint, $entry);
+        // Only dispatch the event when there's no entry.
+        // When there is an entry, the event is dispatched from the entry.
+        if (! $entry) {
+            Blink::once(
+                'collection-entryblueprintfound-'.$this->handle().'-'.$blueprint->handle(),
+                fn () => EntryBlueprintFound::dispatch($blueprint)
+            );
+        }
 
         return $blueprint;
     }
@@ -306,22 +322,11 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
 
         return Blink::once($blink, function () use ($blueprint) {
             if (is_null($blueprint)) {
-                return $this->entryBlueprints()->reject->hidden()->first();
+                return $this->entryBlueprints()->reject->hidden()->first() ?? $this->entryBlueprints()->first();
             }
 
             return $this->entryBlueprints()->keyBy->handle()->get($blueprint)
                 ?? $this->entryBlueprints()->keyBy->handle()->get(Str::singular($blueprint));
-        });
-    }
-
-    private function dispatchEntryBlueprintFoundEvent($blueprint, $entry)
-    {
-        $id = optional($entry)->id() ?? 'null';
-
-        $blink = 'collection-entry-blueprint-'.$this->handle().'-'.$blueprint->handle().'-'.$id;
-
-        Blink::once($blink, function () use ($blueprint, $entry) {
-            EntryBlueprintFound::dispatch($blueprint, $entry);
         });
     }
 
@@ -346,11 +351,11 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
         ]);
 
         if ($this->requiresSlugs()) {
-            $blueprint->ensureField('slug', ['type' => 'slug', 'localizable' => true], 'sidebar');
+            $blueprint->ensureField('slug', ['type' => 'slug', 'localizable' => true, 'validate' => 'max:200'], 'sidebar');
         }
 
         if ($this->dated()) {
-            $blueprint->ensureField('date', ['type' => 'date', 'required' => true], 'sidebar');
+            $blueprint->ensureField('date', ['type' => 'date', 'required' => true, 'default' => 'now'], 'sidebar');
         }
 
         if ($this->hasStructure() && ! $this->orderable()) {
@@ -364,6 +369,10 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
         }
 
         foreach ($this->taxonomies() as $taxonomy) {
+            if ($blueprint->hasField($taxonomy->handle())) {
+                continue;
+            }
+
             $blueprint->ensureField($taxonomy->handle(), [
                 'type' => 'terms',
                 'taxonomies' => [$taxonomy->handle()],
@@ -432,20 +441,42 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
         return $translation;
     }
 
+    public function saveQuietly()
+    {
+        $this->withEvents = false;
+
+        return $this->save();
+    }
+
     public function save()
     {
         $isNew = ! Facades\Collection::handleExists($this->handle);
+
+        $withEvents = $this->withEvents;
+        $this->withEvents = true;
+
+        if ($withEvents) {
+            if ($isNew && CollectionCreating::dispatch($this) === false) {
+                return false;
+            }
+
+            if (CollectionSaving::dispatch($this) === false) {
+                return false;
+            }
+        }
 
         Facades\Collection::save($this);
 
         Blink::forget('collection-handles');
         Blink::flushStartingWith("collection-{$this->id()}");
 
-        if ($isNew) {
-            CollectionCreated::dispatch($this);
-        }
+        if ($withEvents) {
+            if ($isNew) {
+                CollectionCreated::dispatch($this);
+            }
 
-        CollectionSaved::dispatch($this);
+            CollectionSaved::dispatch($this);
+        }
 
         return $this;
     }
@@ -460,6 +491,13 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
     public function updateEntryOrder($ids = null)
     {
         Facades\Collection::updateEntryOrder($this, $ids);
+
+        return $this;
+    }
+
+    public function updateEntryParent($ids = null)
+    {
+        Facades\Collection::updateEntryParent($this, $ids);
 
         return $this;
     }
@@ -497,7 +535,6 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
             'past_date_behavior' => $this->pastDateBehavior(),
             'future_date_behavior' => $this->futureDateBehavior(),
             'default_publish_state' => $this->defaultPublishState,
-            'amp' => $this->ampable,
             'sites' => $this->sites,
             'propagate' => $this->propagate(),
             'template' => $this->template,
@@ -511,6 +548,7 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
             'taxonomies' => $this->taxonomies,
             'revisions' => $this->revisions,
             'title_format' => $this->titleFormats,
+            'autosave' => $this->autosave,
         ];
 
         $array = Arr::except($formerlyToArray, [
@@ -529,7 +567,6 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
         $array = Arr::removeNullValues(array_merge($array, [
             'route' => $route,
             'slugs' => $this->requiresSlugs() === true ? null : false,
-            'amp' => $array['amp'] ?: null,
             'date' => $this->dated ?: null,
             'sort_by' => $this->sortField,
             'sort_dir' => $this->sortDirection,
@@ -605,6 +642,7 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
             ->args(func_get_args());
     }
 
+    /** @deprecated */
     public function revisions($enabled = null)
     {
         return $this
@@ -625,6 +663,20 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
                 }
 
                 return $enabled;
+            })
+            ->args(func_get_args());
+    }
+
+    public function autosaveInterval($interval = null)
+    {
+        return $this
+            ->fluentlyGetOrSet('autosave')
+            ->getter(function ($interval) {
+                if (! config('statamic.autosave.enabled') || ! Statamic::pro() || ! $interval) {
+                    return null;
+                }
+
+                return is_bool($interval) ? config('statamic.autosave.interval') : $interval;
             })
             ->args(func_get_args());
     }
@@ -655,7 +707,7 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
             ->args(func_get_args());
     }
 
-    public function structureContents(array $contents = null)
+    public function structureContents(?array $contents = null)
     {
         return $this
             ->fluentlyGetOrSet('structureContents')
@@ -702,13 +754,36 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
         return $this->structure !== null || $this->structureContents !== null;
     }
 
+    public function deleteQuietly()
+    {
+        $this->withEvents = false;
+
+        return $this->delete();
+    }
+
     public function delete()
     {
-        $this->queryEntries()->get()->each->delete();
+        $withEvents = $this->withEvents;
+        $this->withEvents = true;
+
+        if ($withEvents && CollectionDeleting::dispatch($this) === false) {
+            return false;
+        }
+
+        $this->queryEntries()->get()->each(function ($entry) use ($withEvents) {
+            $entry->deleteDescendants($withEvents);
+            $withEvents ? $entry->delete() : $entry->deleteQuietly();
+        });
+
+        if ($this->hasStructure()) {
+            $this->structure()->trees()->each->delete();
+        }
 
         Facades\Collection::delete($this);
 
-        CollectionDeleted::dispatch($this);
+        if ($withEvents) {
+            CollectionDeleted::dispatch($this);
+        }
 
         return true;
     }
@@ -729,7 +804,7 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
                     return null;
                 }
 
-                return Blink::once("collection-{$this->id()}-mount-{$mount}", function () use ($mount) {
+                return Blink::store('collection-mounts')->once("{$this->id()}-{$mount}", function () use ($mount) {
                     return Entry::find($mount);
                 });
             })
@@ -768,7 +843,9 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
             ? $this->defaultPreviewTargets()
             : $this->previewTargets;
 
-        return collect($targets);
+        return collect($targets)->map(function ($target) {
+            return $target + ['refresh' => $target['refresh'] ?? true];
+        });
     }
 
     public function addPreviewTargets($targets)
@@ -780,12 +857,20 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
 
     public function additionalPreviewTargets()
     {
-        return Facades\Collection::additionalPreviewTargets($this->handle);
+        return Facades\Collection::additionalPreviewTargets($this->handle)->map(function ($target) {
+            return $target + ['refresh' => $target['refresh'] ?? true];
+        });
     }
 
     private function defaultPreviewTargets()
     {
-        return [['label' => 'Entry', 'format' => '{permalink}']];
+        return [
+            [
+                'label' => 'Entry',
+                'format' => '{permalink}',
+                'refresh' => true,
+            ],
+        ];
     }
 
     private function previewTargetsForFile()
@@ -804,6 +889,7 @@ class Collection implements Contract, AugmentableContract, ArrayAccess, Arrayabl
             return [
                 'label' => $target['label'],
                 'url' => $target['format'],
+                'refresh' => $target['refresh'],
             ];
         })->filter()->values()->all();
     }

@@ -4,7 +4,6 @@ namespace Tests\Git;
 
 use Facades\Statamic\Fields\BlueprintRepository;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
 use Statamic\Assets\Asset;
@@ -33,7 +32,8 @@ class GitEventTest extends TestCase
         Config::set('statamic.git.enabled', true);
 
         $this->actingAs(
-            User::make()
+            $user = User::make()
+                ->id('chewbacca')
                 ->email('chew@bacca.com')
                 ->data(['name' => 'Chewbacca'])
                 ->makeSuper()
@@ -47,11 +47,13 @@ class GitEventTest extends TestCase
         Storage::fake('test');
 
         Git::shouldReceive('statuses');
+        Git::shouldReceive('as')->with($user)->andReturnSelf();
     }
 
     /** @test */
     public function it_doesnt_commit_when_git_is_disabled()
     {
+        Git::shouldReceive('as')->never();
         Git::shouldReceive('dispatchCommit')->with('Collection saved')->never();
         Git::shouldReceive('dispatchCommit')->with('Collection deleted')->never();
 
@@ -66,6 +68,7 @@ class GitEventTest extends TestCase
     /** @test */
     public function it_doesnt_commit_when_automatic_is_disabled()
     {
+        Git::shouldReceive('as')->never();
         Git::shouldReceive('dispatchCommit')->with('Collection saved')->never();
         Git::shouldReceive('dispatchCommit')->with('Collection deleted')->never();
 
@@ -80,6 +83,7 @@ class GitEventTest extends TestCase
     /** @test */
     public function it_doesnt_commit_ignored_events()
     {
+        Git::shouldReceive('as')->never();
         Git::shouldReceive('dispatchCommit')->with('Collection saved')->never();
         Git::shouldReceive('dispatchCommit')->with('Collection deleted')->once();
 
@@ -96,6 +100,7 @@ class GitEventTest extends TestCase
     /** @test */
     public function it_doesnt_commit_when_event_subscriber_is_disabled()
     {
+        Git::shouldReceive('as')->never();
         Git::shouldReceive('dispatchCommit')->with('Collection saved')->never();
         Git::shouldReceive('dispatchCommit')->with('Collection deleted')->once();
 
@@ -423,8 +428,6 @@ class GitEventTest extends TestCase
 
         $asset = tap($this->makeAsset()->data(['bar' => 'baz']))->saveQuietly();
 
-        $this->actuallySaveAssetFileAndMetaToDisk($asset);
-
         $asset->move('new-location');
     }
 
@@ -434,8 +437,6 @@ class GitEventTest extends TestCase
         Git::shouldReceive('dispatchCommit')->with('Asset saved')->once();
 
         $asset = tap($this->makeAsset()->data(['bar' => 'baz']))->saveQuietly();
-
-        $this->actuallySaveAssetFileAndMetaToDisk($asset);
 
         $asset->rename('new-name');
     }
@@ -599,13 +600,6 @@ class GitEventTest extends TestCase
             ->container($container->handle())
             ->path($path)
             ->data(['foo' => 'bar']);
-    }
-
-    // For Flysystem 1.x
-    protected function actuallySaveAssetFileAndMetaToDisk($asset)
-    {
-        $asset->container->disk()->filesystem()->put($asset->path(), '');
-        $asset->container->disk()->filesystem()->put($asset->metaPath(), '');
     }
 }
 

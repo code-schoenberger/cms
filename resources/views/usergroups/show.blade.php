@@ -1,17 +1,19 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', Statamic::crumb($group->title(), 'User Group'))
 @section('wrapper_class', 'max-w-full')
 
 @section('content')
 
-<header class="mb-3">
+<header class="mb-6">
         @include('statamic::partials.breadcrumb', [
             'url' => cp_route('user-groups.index'),
             'title' => __('User Groups')
         ])
         <div class="flex items-center">
-            <h1 class="flex-1">{{ $group->title() }}</h1>
-            <dropdown-list class="mr-1">
+            <h1 class="flex-1">{{ __($group->title()) }}</h1>
+            <dropdown-list class="rtl:ml-2 ltr:mr-2">
                 @can('edit', $group)
                     <dropdown-item :text="__('Edit User Group')" redirect="{{ $group->editUrl() }}"></dropdown-item>
                 @endcan
@@ -33,6 +35,7 @@
         listing-key="usergroup-users"
         group="{{ $group->id() }}"
         :filters="{{ $filters->toJson() }}"
+        :allow-filter-presets="false"
         action-url="{{ cp_route('users.actions.run') }}"
     ></user-listing>
 

@@ -11,6 +11,7 @@ class GlideTest extends TestCase
 {
     /**
      * @test
+     *
      * @define-env relativeRouteUrl
      */
     public function it_outputs_a_relative_url_by_default_when_the_glide_route_is_relative()
@@ -24,6 +25,7 @@ class GlideTest extends TestCase
 
     /**
      * @test
+     *
      * @define-env absoluteHttpRouteUrl
      */
     public function it_outputs_an_absolute_url_by_default_when_the_glide_route_is_absolute_http()
@@ -37,6 +39,7 @@ class GlideTest extends TestCase
 
     /**
      * @test
+     *
      * @define-env absoluteHttpsRouteUrl
      */
     public function it_outputs_an_absolute_url_by_default_when_the_glide_route_is_absolute_https()
@@ -46,6 +49,17 @@ class GlideTest extends TestCase
         $this->assertEquals('https://localhost/glide/paths/bar.jpg/689e9cd88cc1d852c9a4d3a1e27d68c2.jpg', $this->absoluteTestTag());
         $this->assertEquals('/glide/paths/bar.jpg/689e9cd88cc1d852c9a4d3a1e27d68c2.jpg', $this->absoluteTestTag(false));
         $this->assertEquals('https://localhost/glide/paths/bar.jpg/689e9cd88cc1d852c9a4d3a1e27d68c2.jpg', $this->absoluteTestTag(true));
+    }
+
+    /**
+     * @test
+     * https://github.com/statamic/cms/pull/9031
+     */
+    public function it_outputs_an_absolute_url_when_the_url_does_not_have_a_valid_extension()
+    {
+        $parse = (string) Parse::template('{{ glide src="https://statamic.com/foo" }}');
+
+        $this->assertSame('https://statamic.com/foo', $parse);
     }
 
     /**

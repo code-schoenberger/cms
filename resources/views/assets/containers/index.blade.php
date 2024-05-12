@@ -1,9 +1,11 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', __('Asset Containers'))
 
 @section('content')
 
-    <div class="flex mb-3">
+    <div class="flex mb-6">
         <h1 class="flex-1">{{ __('Asset Containers') }}</h1>
 
         @can('create', 'Statamic\Contracts\Assets\AssetContainer')

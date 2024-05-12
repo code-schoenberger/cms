@@ -1,3 +1,5 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', __('Blueprints'))
 
@@ -14,7 +16,7 @@
         reorder-url="{{ cp_route('collections.blueprints.reorder', $collection) }}"
     >
         <div>
-            <div class="flex justify-between items-center mb-3">
+            <div class="flex justify-between items-center mb-6">
                 <h1>@yield('title')</h1>
 
                 <div>
@@ -27,7 +29,7 @@
                         >{{ __('Save Order') }}</button>
                     @endif
 
-                    <a href="{{ cp_route('collections.blueprints.create', $collection) }}" class="btn-primary ml-1">{{ __('Create Blueprint') }}</a>
+                    <a href="{{ cp_route('collections.blueprints.create', $collection) }}" class="btn-primary rtl:mr-2 ltr:ml-2">{{ __('Create Blueprint') }}</a>
                 </div>
             </div>
 

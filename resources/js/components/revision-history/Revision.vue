@@ -7,21 +7,21 @@
         }"
         @click="open"
     >
-        <div v-if="revision.message" class="revision-item-note text-truncate" v-text="revision.message" />
+        <div v-if="revision.message" class="revision-item-note truncate" v-text="revision.message" />
 
         <div class="flex items-center">
-            <avatar v-if="revision.user" :user="revision.user" class="flex-shrink-0 mr-1 w-6" />
+            <avatar v-if="revision.user" :user="revision.user" class="shrink-0 rtl:ml-2 ltr:mr-2 w-6" />
 
             <div class="revision-item-content w-full flex">
                 <div class="flex-1">
-                    <div class="revision-author text-grey-70 text-2xs">
+                    <div class="revision-author text-gray-700 text-2xs">
                         <template v-if="revision.user">{{ revision.user.name || revision.user.email }} &ndash;</template>
-                        {{ date.fromNow() }}
+                        {{ date.toDate().toLocaleTimeString($config.get('locale').replace('_', '-'), { hour: 'numeric', minute: '2-digit' }) }}
                     </div>
                 </div>
 
                 <span class="badge" v-if="revision.working" v-text="__('Working Copy')" />
-                <span class="badge" :class="revision.action" v-else v-text="revision.action" />
+                <span class="badge" :class="revision.action" v-else v-text="__(revision.action)" />
                 <span class="badge bg-orange" v-if="revision.attributes.current" v-text="__('Current')" />
 
                 <revision-preview
@@ -36,7 +36,7 @@
                             :revision="revision"
                             :url="restoreUrl"
                             :reference="reference"
-                            class="ml-2" />
+                            class="rtl:mr-4 ltr:ml-4" />
                     </template>
                 </revision-preview>
             </div>

@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class DeslugifyTest extends TestCase
 {
-    public function slackingSlugs(): array
+    public static function slackingSlugsProvider(): array
     {
         return [
             'with_dashes' => ['Just Because I Can', 'Just-Because-I-Can'],
@@ -17,7 +17,8 @@ class DeslugifyTest extends TestCase
 
     /**
      * @test
-     * @dataProvider slackingSlugs
+     *
+     * @dataProvider slackingSlugsProvider
      */
     public function it_replaces_all_hyphens_and_underscores_with_spaces($expected, $input): void
     {

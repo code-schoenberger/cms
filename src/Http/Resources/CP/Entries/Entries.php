@@ -3,6 +3,7 @@
 namespace Statamic\Http\Resources\CP\Entries;
 
 use Illuminate\Http\Resources\Json\ResourceCollection;
+use Statamic\CP\Column;
 use Statamic\Http\Resources\CP\Concerns\HasRequestedColumns;
 
 class Entries extends ResourceCollection
@@ -11,6 +12,7 @@ class Entries extends ResourceCollection
 
     public $collects = ListedEntry::class;
     protected $blueprint;
+    protected $columns;
     protected $columnPreferenceKey;
 
     public function blueprint($blueprint)
@@ -30,6 +32,15 @@ class Entries extends ResourceCollection
     private function setColumns()
     {
         $columns = $this->blueprint->columns();
+
+        $status = Column::make('status')
+            ->listable(true)
+            ->visible(true)
+            ->defaultVisibility(true)
+            ->defaultOrder($columns->count() + 1)
+            ->sortable(false);
+
+        $columns->put('status', $status);
 
         if ($key = $this->columnPreferenceKey) {
             $columns->setPreferred($key);

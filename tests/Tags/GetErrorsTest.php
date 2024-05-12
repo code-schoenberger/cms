@@ -16,6 +16,7 @@ class GetErrorsTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider organizedProvider
      */
     public function it_gets_errors_organized_into_fields($params, $bag, $errors, $expected)
@@ -38,7 +39,7 @@ EOT;
         $this->assertEquals($expected, $this->tag($template));
     }
 
-    public function organizedProvider()
+    public static function organizedProvider()
     {
         $filledExpectation = <<<'EOT'
 
@@ -89,6 +90,7 @@ EOT;
 
     /**
      * @test
+     *
      * @dataProvider allProvider
      */
     public function it_gets_errors_for_all_fields_together($params, $bag, $errors, $expected)
@@ -108,7 +110,7 @@ EOT;
         $this->assertEquals($expected, $this->tag($template));
     }
 
-    public function allProvider()
+    public static function allProvider()
     {
         $filledExpectation = <<<'EOT'
 
@@ -153,6 +155,7 @@ EOT;
 
     /**
      * @test
+     *
      * @dataProvider fieldProvider
      */
     public function it_gets_errors_for_a_single_field($params, $bag, $errors, $expected)
@@ -172,7 +175,7 @@ EOT;
         $this->assertEquals($expected, $this->tag($template));
     }
 
-    public function fieldProvider()
+    public static function fieldProvider()
     {
         $filledExpectation = <<<'EOT'
 

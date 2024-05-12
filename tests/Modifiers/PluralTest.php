@@ -10,7 +10,7 @@ use Tests\TestCase;
  */
 class PluralTest extends TestCase
 {
-    public function shoppingList()
+    public static function shoppingListProvider()
     {
         return [
             ['pickle', ['item' => 'pickle', 'quantity' => 1]],
@@ -21,7 +21,8 @@ class PluralTest extends TestCase
 
     /**
      * @test
-     * @dataProvider shoppingList
+     *
+     * @dataProvider shoppingListProvider
      */
     public function it_returns_the_plural_form_of_an_english_word_from_context($expected, $input): void
     {

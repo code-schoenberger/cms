@@ -1,4 +1,3 @@
-import Luminous from 'luminous-lightbox';
 import AssetEditor from '../../assets/Editor/Editor.vue';
 
 export default {
@@ -11,6 +10,10 @@ export default {
         asset: Object,
         readOnly: Boolean,
         showFilename: {
+            type: Boolean,
+            default: true
+        },
+        showSetAlt: {
             type: Boolean,
             default: true
         }
@@ -51,6 +54,10 @@ export default {
 
         label() {
             return this.asset.basename;
+        },
+
+        needsAlt() {
+            return (this.asset.isImage || this.asset.isSvg) && !this.asset.values.alt;
         }
     },
 
@@ -70,22 +77,15 @@ export default {
         },
 
         open() {
+            if (! this.asset.url) {
+                return this.download();
+            }
+
             window.open(this.asset.url, '_blank');
         },
 
         download() {
             window.open(this.asset.downloadUrl);
-        },
-
-        makeZoomable() {
-            const el = $(this.$el).find('a.zoom')[0];
-
-            if (! el || ! this.isImage) return;
-
-            new Luminous(el, {
-                closeOnScroll: true,
-                captionAttribute: 'title'
-            });
         },
 
         closeEditor() {
@@ -106,11 +106,6 @@ export default {
             this.closeEditor();
         },
 
-    },
-
-
-    mounted() {
-        this.makeZoomable();
     }
 
 }

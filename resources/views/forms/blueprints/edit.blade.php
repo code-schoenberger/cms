@@ -1,3 +1,5 @@
+@php use function Statamic\trans as __; @endphp
+
 @extends('statamic::layout')
 @section('title', __('Edit Blueprint'))
 
@@ -5,13 +7,13 @@
 
     @include('statamic::partials.breadcrumb', [
         'url' => cp_route('forms.show', $form->handle()),
-        'title' => $form->title(),
+        'title' => __($form->title()),
     ])
 
     <blueprint-builder
         action="{{ cp_route('forms.blueprint.update', $form->handle()) }}"
         :initial-blueprint="{{ json_encode($blueprintVueObject) }}"
-        :use-sections="false"
+        :use-tabs="false"
         :is-form-blueprint="true"
     ></blueprint-builder>
 

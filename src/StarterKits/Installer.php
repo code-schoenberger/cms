@@ -19,6 +19,7 @@ use Statamic\Support\Str;
 final class Installer
 {
     protected $package;
+    protected $branch;
     protected $licenseManager;
     protected $files;
     protected $fromLocalRepo;
@@ -34,14 +35,14 @@ final class Installer
     /**
      * Instantiate starter kit installer.
      *
-     * @param  string  $package
      * @param  mixed  $console
-     * @param  LicenseManager|null  $licenseManager
      */
-    public function __construct(string $package, $console = null, LicenseManager $licenseManager = null)
+    public function __construct(string $package, $console = null, ?LicenseManager $licenseManager = null)
     {
         $this->package = $package;
+
         $this->licenseManager = $licenseManager;
+
         $this->console = $console ?? new Nullconsole;
 
         $this->files = app(Filesystem::class);
@@ -50,14 +51,25 @@ final class Installer
     /**
      * Instantiate starter kit installer.
      *
-     * @param  string  $package
      * @param  mixed  $console
-     * @param  LicenseManager|null  $licenseManager
      * @return static
      */
-    public static function package(string $package, $console = null, LicenseManager $licenseManager = null)
+    public static function package(string $package, $console = null, ?LicenseManager $licenseManager = null)
     {
-        return new static($package, $console, $licenseManager);
+        return new self($package, $console, $licenseManager);
+    }
+
+    /**
+     * Install from specific branch.
+     *
+     * @param  string|null  $branch
+     * @return $this
+     */
+    public function branch($branch = null)
+    {
+        $this->branch = $branch;
+
+        return $this;
     }
 
     /**
@@ -254,10 +266,14 @@ final class Installer
     {
         $this->console->info("Preparing starter kit [{$this->package}]...");
 
+        $package = $this->branch
+            ? "{$this->package}:{$this->branch}"
+            : $this->package;
+
         try {
-            Composer::withoutQueue()->throwOnFailure()->requireDev($this->package);
+            Composer::withoutQueue()->throwOnFailure()->requireDev($package);
         } catch (ProcessException $exception) {
-            $this->rollbackWithError("Error installing starter kit [{$this->package}].", $exception->getMessage());
+            $this->rollbackWithError("Error installing starter kit [{$package}].", $exception->getMessage());
         }
 
         return $this;
@@ -576,7 +592,7 @@ EOT;
         $this->console->info('Reticulating splines...');
 
         if (config('app.env') !== 'testing') {
-            sleep(2);
+            usleep(500000);
         }
 
         return $this;
@@ -726,7 +742,6 @@ EOT;
      *
      * TODO: Move to trait and reuse in MakeAddon?
      *
-     * @param  string  $output
      * @return string
      */
     private function outputFromSymfonyProcess(string $output)
@@ -872,7 +887,6 @@ EOT;
     /**
      * Normalize packages array to require args, with version handling if `package => version` array structure is passed.
      *
-     * @param  array  $packages
      * @return array
      */
     private function normalizePackagesArrayToRequireArgs(array $packages)
